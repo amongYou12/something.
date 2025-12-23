@@ -1,46 +1,37 @@
 --[[
-    UNPATCHABOMB [GLOBAL HISTORY FIX]
-    - FIXED: History is now stored Globally. It won't reset if you re-execute the script.
-    - FIXED: Added lowercase normalization so words are never repeated.
-    - INCLUDES: The safe "stopping" fix and your fast typing settings.
+    UNPATCHABOMB [FIXED SUBMISSION]
+    - FIXED: Added 'CleanWord' function to strip invisible characters (\n, \r, spaces).
+    - FIXED: The "Enter" key now holds for 0.05s to ensure the game registers it.
+    - FIXED: Prevents "Enter" from being pressed too fast after the last letter.
 ]]--
 
 --------------------------------------------------------------------------------
--- 0. CONFIGURATION (Your Fast Settings)
+-- 0. CONFIGURATION
 --------------------------------------------------------------------------------
 local TYPING_SETTINGS = {
     StartSlowDelay = {0.04, 0.065}, 
     BaseSpeed = {0.05, 0.07}, 
     HesitationChance = 0.20,
     HesitationDelay = {0.055, 0.065}, 
-    SubmitDelay = {0.02, 0.05}, 
+    SubmitDelay = {0.05, 0.1}, -- INCREASED SLIGHTLY FOR SAFETY (Min 0.05s)
     TypoChance = 0.20, 
     BackspaceSpeed = {0.05, 0.065} 
 }
 
 --------------------------------------------------------------------------------
--- 1. GLOBAL HISTORY SETUP (The Fix)
+-- 1. GLOBAL HISTORY SETUP
 --------------------------------------------------------------------------------
 local GlobalEnv = (getgenv and getgenv()) or _G
--- We store history in the executor's global memory so it persists
-if not GlobalEnv._Unpatchabomb_History_V6 then
-    GlobalEnv._Unpatchabomb_History_V6 = {}
+if not GlobalEnv._Unpatchabomb_History_V7 then
+    GlobalEnv._Unpatchabomb_History_V7 = {}
 end
 
-local function CheckHistory(word)
-    return GlobalEnv._Unpatchabomb_History_V6[word:lower()]
-end
-
-local function AddToHistory(word)
-    GlobalEnv._Unpatchabomb_History_V6[word:lower()] = true
-end
-
-local function ClearHistory()
-    GlobalEnv._Unpatchabomb_History_V6 = {}
-end
+local function CheckHistory(word) return GlobalEnv._Unpatchabomb_History_V7[word:lower()] end
+local function AddToHistory(word) GlobalEnv._Unpatchabomb_History_V7[word:lower()] = true end
+local function ClearHistory() GlobalEnv._Unpatchabomb_History_V7 = {} end
 
 --------------------------------------------------------------------------------
--- 2. GUI CLEANUP & PARENTING
+-- 2. GUI SETUP
 --------------------------------------------------------------------------------
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
@@ -57,31 +48,18 @@ ParentTarget = get_ui_parent()
 if not ParentTarget then return end
 if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
---------------------------------------------------------------------------------
--- 3. UI CONSTRUCTION
---------------------------------------------------------------------------------
-local Unpatchabomb = Instance.new("ScreenGui")
-local UnpatchabombFrame = Instance.new("Frame")
-local MainFrame = Instance.new("Frame")
-local LetterBox = Instance.new("TextBox")
-local RerunButton = Instance.new("TextButton")
-local ResetButton = Instance.new("TextButton")
-local WordText = Instance.new("TextLabel")
-local TopFrame = Instance.new("Frame")
-local MinimizeButton = Instance.new("TextButton")
-
-Unpatchabomb.Name = "Unpatchabomb"; Unpatchabomb.Parent = ParentTarget; Unpatchabomb.ResetOnSpawn = false
-UnpatchabombFrame.Name = "UnpatchabombFrame"; UnpatchabombFrame.Parent = Unpatchabomb; UnpatchabombFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22); UnpatchabombFrame.Position = UDim2.new(0, 50, 1, -250); UnpatchabombFrame.Size = UDim2.new(0, 305, 0, 186); UnpatchabombFrame.Draggable = true; UnpatchabombFrame.Active = true
-MainFrame.Name = "MainFrame"; MainFrame.Parent = UnpatchabombFrame; MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22); MainFrame.Size = UDim2.new(1, 0, 1, 0)
-LetterBox.Name = "LetterBox"; LetterBox.Parent = MainFrame; LetterBox.BackgroundColor3 = Color3.fromRGB(12, 12, 12); LetterBox.Position = UDim2.new(0.02, 0, 0.33, 0); LetterBox.Size = UDim2.new(0.65, 0, 0.44, 0); LetterBox.Font = Enum.Font.GothamBold; LetterBox.Text = "Insert Letters"; LetterBox.TextColor3 = Color3.fromRGB(255, 255, 255); LetterBox.TextSize = 20
-RerunButton.Name = "RerunButton"; RerunButton.Parent = MainFrame; RerunButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35); RerunButton.Position = UDim2.new(0.69, 0, 0.33, 0); RerunButton.Size = UDim2.new(0.14, 0, 0.44, 0); RerunButton.Text = "▶"; RerunButton.TextColor3 = Color3.fromRGB(0, 255, 128); RerunButton.TextSize = 24
-ResetButton.Name = "ResetButton"; ResetButton.Parent = MainFrame; ResetButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35); ResetButton.Position = UDim2.new(0.84, 0, 0.33, 0); ResetButton.Size = UDim2.new(0.14, 0, 0.44, 0); ResetButton.Text = "⟳"; ResetButton.TextColor3 = Color3.fromRGB(255, 80, 80); ResetButton.TextSize = 24
-WordText.Name = "WordText"; WordText.Parent = MainFrame; WordText.BackgroundTransparency = 1; WordText.Position = UDim2.new(0, 0, 0.18, 0); WordText.Size = UDim2.new(1, 0, 0.1, 0); WordText.Font = Enum.Font.GothamBold; WordText.Text = "Waiting..."; WordText.TextColor3 = Color3.fromRGB(255, 255, 255); WordText.TextScaled = true
-TopFrame.Name = "TopFrame"; TopFrame.Parent = UnpatchabombFrame; TopFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12); TopFrame.Size = UDim2.new(1, 0, 0, 28)
-MinimizeButton.Name = "MinimizeButton"; MinimizeButton.Parent = TopFrame; MinimizeButton.BackgroundTransparency = 1; MinimizeButton.Position = UDim2.new(0.9, 0, 0, 0); MinimizeButton.Size = UDim2.new(0, 28, 1, 0); MinimizeButton.Text = "-"; MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255); MinimizeButton.TextSize = 25
+local Unpatchabomb = Instance.new("ScreenGui"); Unpatchabomb.Name = "Unpatchabomb"; Unpatchabomb.Parent = ParentTarget; Unpatchabomb.ResetOnSpawn = false
+local UnpatchabombFrame = Instance.new("Frame"); UnpatchabombFrame.Name = "UnpatchabombFrame"; UnpatchabombFrame.Parent = Unpatchabomb; UnpatchabombFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22); UnpatchabombFrame.Position = UDim2.new(0, 50, 1, -250); UnpatchabombFrame.Size = UDim2.new(0, 305, 0, 186); UnpatchabombFrame.Draggable = true; UnpatchabombFrame.Active = true
+local MainFrame = Instance.new("Frame"); MainFrame.Name = "MainFrame"; MainFrame.Parent = UnpatchabombFrame; MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22); MainFrame.Size = UDim2.new(1, 0, 1, 0)
+local LetterBox = Instance.new("TextBox"); LetterBox.Name = "LetterBox"; LetterBox.Parent = MainFrame; LetterBox.BackgroundColor3 = Color3.fromRGB(12, 12, 12); LetterBox.Position = UDim2.new(0.02, 0, 0.33, 0); LetterBox.Size = UDim2.new(0.65, 0, 0.44, 0); LetterBox.Font = Enum.Font.GothamBold; LetterBox.Text = "Insert Letters"; LetterBox.TextColor3 = Color3.fromRGB(255, 255, 255); LetterBox.TextSize = 20
+local RerunButton = Instance.new("TextButton"); RerunButton.Name = "RerunButton"; RerunButton.Parent = MainFrame; RerunButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35); RerunButton.Position = UDim2.new(0.69, 0, 0.33, 0); RerunButton.Size = UDim2.new(0.14, 0, 0.44, 0); RerunButton.Text = "▶"; RerunButton.TextColor3 = Color3.fromRGB(0, 255, 128); RerunButton.TextSize = 24
+local ResetButton = Instance.new("TextButton"); ResetButton.Name = "ResetButton"; ResetButton.Parent = MainFrame; ResetButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35); ResetButton.Position = UDim2.new(0.84, 0, 0.33, 0); ResetButton.Size = UDim2.new(0.14, 0, 0.44, 0); ResetButton.Text = "⟳"; ResetButton.TextColor3 = Color3.fromRGB(255, 80, 80); ResetButton.TextSize = 24
+local WordText = Instance.new("TextLabel"); WordText.Name = "WordText"; WordText.Parent = MainFrame; WordText.BackgroundTransparency = 1; WordText.Position = UDim2.new(0, 0, 0.18, 0); WordText.Size = UDim2.new(1, 0, 0.1, 0); WordText.Font = Enum.Font.GothamBold; WordText.Text = "Waiting..."; WordText.TextColor3 = Color3.fromRGB(255, 255, 255); WordText.TextScaled = true
+local TopFrame = Instance.new("Frame"); TopFrame.Name = "TopFrame"; TopFrame.Parent = UnpatchabombFrame; TopFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12); TopFrame.Size = UDim2.new(1, 0, 0, 28)
+local MinimizeButton = Instance.new("TextButton"); MinimizeButton.Name = "MinimizeButton"; MinimizeButton.Parent = TopFrame; MinimizeButton.BackgroundTransparency = 1; MinimizeButton.Position = UDim2.new(0.9, 0, 0, 0); MinimizeButton.Size = UDim2.new(0, 28, 1, 0); MinimizeButton.Text = "-"; MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255); MinimizeButton.TextSize = 25
 
 --------------------------------------------------------------------------------
--- 4. DATA TABLES (Paste Words Here)
+-- 3. DATA TABLES (Paste Words Here)
 --------------------------------------------------------------------------------
 local ENGLISH_WORDS = {
     "antidisestablishmentarianism", "floccinaucinihilipilification", "dichlorodiphenyltrichloroethane", "overintellectualization", "psychopharmacological", "electroencephalographically", "thyroparathyroidectomized", "radioimmunoelectrophoresis", "spectrophotofluorometrically", "ultramicroscopically", "counterdemonstrations", "institutionalization", "uncharacteristically", "misinterpretation", "interdenominational", "thermoelectrically", "hyperconsciousness", "prestidigitations", "microspectrophotometry", "deinstitutionalization", "conceptualization", "reconceptualization", "counterrevolutionaries", "bioluminescently", "nonrepresentationalism", "transubstantiational", "individualistically", "interchangeabilities", "antiterroristically", "electrophotographies", "multidimensionalities", "subcompartmentalization", "thermoregulations", "overinstrumentalization", "magnetohydrodynamics", "neurophysiologically", "microarchitectures", "pharmacotherapeutics", "internationalization", "counterproductiveness", "subcategorization", "overconceptualization", "counterproductively", "biotechnological", "multinationalities", "mischaracterization", "autobiographically", "chemolithotrophically", "reindustrialization", "photospectroscopically", "electrotherapeutically", "histopathologically", "ultramicroscopical", "microphotographies", "thermodynamically", "underrepresented", "counterintelligence", "intercontinental", "multidisciplinarily", "reconceptualizing", "overconceptualized", "ultrastructurally", "micromanagements", "neurophysiological", "decontaminations", "psychophysiological", "instrumentational", "anticonventionalism", "internationalistically", "neuroanatomically", "immunohistochemical", "electrocardiographies", "multidimensionality", "anticonstitutionally", "hyperinstrumentalism", "bioluminescentness", "intercommunicational", "microspectrophotometries", "thermoregulated", "electroencephalograph", "noninstitutionalized", "neuropsychological", "psychopharmacologically", "overindustrialization", "psychoneuroimmunology", "transubstantiationalism", "deinstitutionalizations", "electroencephalograms", "psychophysiologically", "counterrevolutionary", "thermoelectromagnetics", "subcontraoctave", "overindustrializations", "prestidigitationally", "overintellectualizations", "multidisciplinary", "neuropsychologically", "anticonventionalistically", "ultrastructuralizations", "reconceptualizationist", "psychoneuroimmunologically", "magnetohydrodynamically", "electrophysiologically", "representationally", "interventionism", "transformationally", "identification", "characterization", "deconstructionist", "unconventionality", "establishmentarian", "disappointment", "compartmentalized", "sentimentalization", "acknowledgement", "accomplishments", "pronouncements", "enfranchisements", "underdevelopment", "replenishment", "knowledgeable", "unmanageable", "interchangeable", "understandable", "unquestionable", "impermeable", "disagreeable", "representable", "unforgettable", "unreachable", "lightheadedness", "whimsicalness", "comprehensiveness", "resourcefulness", "trustworthiness", "thoughtfulness", "appropriateness", "unpreparedness", "consciousness", "effectiveness", "paleontologist", "microbiologist", "epidemiologist", "neuropsychologist", "anthropologically", "geomorphological", "chronologically", "sociologically", "phraseologically", "cryptozoological"
@@ -97,17 +75,22 @@ local ENGLISH_WORDS_3 = {
 local ALL_WORD_LISTS = {ENGLISH_WORDS, ENGLISH_WORDS_2, ENGLISH_WORDS_3}
 
 --------------------------------------------------------------------------------
--- 5. SAFE TYPING ENGINE
+-- 4. LOGIC ENGINE
 --------------------------------------------------------------------------------
 local isTyping = false 
 
--- Helper for decimal math.random
+-- FIX 1: SANITIZER FUNCTION
+-- Removes spaces, newlines, control characters, and non-alphanumeric junk.
+local function CleanWord(str)
+    if not str then return "" end
+    -- Keep only letters (A-Z, a-z) and hyphens. Removes spaces and hidden chars.
+    return str:gsub("[%c%s]", ""):gsub("[^%w%-]", "")
+end
+
 local function GetRandomTime(timeTable)
-    local minVal = timeTable[1]
-    local maxVal = timeTable[2]
+    local minVal = timeTable[1]; local maxVal = timeTable[2]
     if minVal > maxVal then local temp = minVal; minVal = maxVal; maxVal = temp end
-    local minInt = math.floor(minVal * 10000)
-    local maxInt = math.floor(maxVal * 10000)
+    local minInt = math.floor(minVal * 10000); local maxInt = math.floor(maxVal * 10000)
     if minInt == maxInt then return minVal end
     return math.random(minInt, maxInt) / 10000
 end
@@ -122,7 +105,7 @@ local function IDA_autoType(word)
     local function press(key)
         pcall(function()
             vim:SendKeyEvent(true, key, false, game)
-            task.wait(0.01) 
+            task.wait(0.01) -- Key hold duration
             vim:SendKeyEvent(false, key, false, game)
         end)
     end
@@ -131,7 +114,6 @@ local function IDA_autoType(word)
     local mistakeMade = false
 
     while i <= #word do
-        -- TYPO LOGIC
         if #word > 7 and not mistakeMade and i > 2 and math.random() < TYPING_SETTINGS.TypoChance then
             mistakeMade = true
             task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
@@ -141,12 +123,12 @@ local function IDA_autoType(word)
             task.wait(GetRandomTime(TYPING_SETTINGS.BackspaceSpeed))
         end
 
-        -- KEY PRESS
         local char = word:sub(i, i):upper()
         local code = Enum.KeyCode[char] or (char == " " and Enum.KeyCode.Space)
+        if char == "-" then code = Enum.KeyCode.Minus end -- Support for hyphens
+        
         if code then press(code) end
 
-        -- DELAYS
         local currentDelay = 0
         if i <= math.random(3, 5) then
             currentDelay = GetRandomTime(TYPING_SETTINGS.StartSlowDelay)
@@ -162,24 +144,27 @@ local function IDA_autoType(word)
         i = i + 1
     end
 
-    task.wait(GetRandomTime(TYPING_SETTINGS.SubmitDelay))
-    press(Enum.KeyCode.Return)
+    -- FIX 2: ENSURE ENTER IS PRESSED CORRECTLY
+    -- We wait a tiny bit to make sure the game registered the last letter
+    task.wait(math.max(0.1, GetRandomTime(TYPING_SETTINGS.SubmitDelay)))
+    
+    -- Press Enter with a slightly longer hold duration to guarantee register
+    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+    task.wait(0.05) -- Hold enter for 50ms
+    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     
     isTyping = false
     WordText.Text = "Finished: " .. word
 end
 
---------------------------------------------------------------------------------
--- 6. SEARCH LOGIC (With Global History Check)
---------------------------------------------------------------------------------
 local function IDA_findWord(substr)
-    local s = substr:lower()
+    local s = CleanWord(substr):lower() -- Sanitize input too
     for _, list in ipairs(ALL_WORD_LISTS) do
         for _, v in ipairs(list) do
-            -- GLOBAL HISTORY CHECK
-            if not CheckHistory(v) and v:lower():find(s, 1, true) then
-                AddToHistory(v) -- Save to global history
-                return v
+            local cleanV = CleanWord(v) -- Sanitize table word before checking
+            if cleanV ~= "" and not CheckHistory(cleanV) and cleanV:lower():find(s, 1, true) then
+                AddToHistory(cleanV)
+                return cleanV
             end
         end
     end
@@ -202,18 +187,15 @@ local function IDA_PerformSearch()
 end
 
 --------------------------------------------------------------------------------
--- 7. INITIALIZATION
+-- 5. INITIALIZATION
 --------------------------------------------------------------------------------
 LetterBox.FocusLost:Connect(function(e) if e then IDA_PerformSearch() end end)
 RerunButton.MouseButton1Click:Connect(IDA_PerformSearch)
-
 ResetButton.MouseButton1Click:Connect(function() 
     if isTyping then return end
-    ClearHistory() -- Clears the global table
+    ClearHistory() 
     WordText.Text = "Global History Cleared!" 
 end)
-
 MinimizeButton.MouseButton1Click:Connect(function() 
-    MainFrame.Visible = not MainFrame.Visible
-    MinimizeButton.Text = MainFrame.Visible and "-" or "+" 
+    MainFrame.Visible = not MainFrame.Visible; MinimizeButton.Text = MainFrame.Visible and "-" or "+" 
 end)
