@@ -12,7 +12,8 @@
 -- Put your links here. You can add as many as you want.
 local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/CollinsScrabble", -- Link 1
-    "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt" -- Link 2 (Replace this with your 2nd url)
+    "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
+    "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt"-- Link 2 (Replace this with your 2nd url)
 }
 
 -- IMPORTANT: Only load words longer than this (Prevents short/weak words)
