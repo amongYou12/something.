@@ -1,6 +1,6 @@
 --[[
-    UNPATCHABOMB [MASSIVE DICTIONARY VERSION]
-    - SOURCE: dwyl/english-words (370k+ words).
+    UNPATCHABOMB [DUAL DICTIONARY VERSION]
+    - SOURCE: Supports Multiple Loadstrings.
     - FILTER: Only loads words >= 10 letters to ensure you win.
     - UI: Modern Dark Theme.
     - LOGIC: Natural Typing + Global History + Sanitization.
@@ -9,8 +9,11 @@
 --------------------------------------------------------------------------------
 -- 0. CONFIGURATION
 --------------------------------------------------------------------------------
--- The massive dictionary URL
-local GitHubURL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/CollinsScrabble"
+-- Put your links here. You can add as many as you want.
+local DictionaryURLs = {
+    "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/CollinsScrabble", -- Link 1
+    "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt" -- Link 2 (Replace this with your 2nd url)
+}
 
 -- IMPORTANT: Only load words longer than this (Prevents short/weak words)
 local MIN_WORD_LENGTH = 10 
@@ -44,33 +47,45 @@ local ParentTarget = (gethui and gethui()) or CoreGui:FindFirstChild("RobloxGui"
 if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
 --------------------------------------------------------------------------------
--- 2. SMART LOADER (Filters Short Words)
+-- 2. SMART LOADER (Multi-Source + Filters)
 --------------------------------------------------------------------------------
 local ALL_WORDS = {}
 
 local function LoadRemoteWords()
-    local success, content = pcall(function()
-        return game:HttpGet(GitHubURL)
-    end)
+    ALL_WORDS = {}
+    local seenWords = {} -- Used to prevent duplicates if both lists have the same word
+    local count = 0
+    local failedLinks = 0
     
-    if success then
-        ALL_WORDS = {} 
-        local count = 0
-        -- Parse the massive file line by line
-        for line in content:gmatch("[^\r\n]+") do
-            -- Clean the line (remove invisible junk)
-            local cleanLine = line:match("^%s*(.-)%s*$")
-            -- ONLY accept if it's long enough
-            if cleanLine and #cleanLine >= MIN_WORD_LENGTH then
-                table.insert(ALL_WORDS, cleanLine)
-                count = count + 1
+    for _, url in ipairs(DictionaryURLs) do
+        -- Skip empty placeholders
+        if url:find("http") then
+            local success, content = pcall(function()
+                return game:HttpGet(url)
+            end)
+            
+            if success then
+                for line in content:gmatch("[^\r\n]+") do
+                    -- Clean the line (remove invisible junk)
+                    local cleanLine = line:match("^%s*(.-)%s*$")
+                    
+                    -- Check Length AND if we haven't added it yet
+                    if cleanLine and #cleanLine >= MIN_WORD_LENGTH and not seenWords[cleanLine] then
+                        seenWords[cleanLine] = true
+                        table.insert(ALL_WORDS, cleanLine)
+                        count = count + 1
+                    end
+                end
+            else
+                warn("Unpatchabomb: Failed to load URL: " .. url)
+                failedLinks = failedLinks + 1
             end
         end
-        return count
-    else
-        warn("Unpatchabomb: Connection Failed.")
-        return 0
     end
+    
+    -- Clear the memory of the check table
+    seenWords = nil 
+    return count
 end
 
 --------------------------------------------------------------------------------
@@ -87,7 +102,7 @@ local Title = Instance.new("TextLabel"); Title.Parent = TopBar; Title.Background
 
 -- Load words immediately
 local wordCount = LoadRemoteWords()
-local WordText = Instance.new("TextLabel"); WordText.Name = "Status"; WordText.Parent = MainFrame; WordText.BackgroundTransparency = 1; WordText.Position = UDim2.new(0, 0, 0.25, 0); WordText.Size = UDim2.new(1, 0, 0.15, 0); WordText.Font = Enum.Font.GothamMedium; WordText.Text = (wordCount > 0 and "Loaded " .. wordCount .. " Long Words") or "Error Loading!"; WordText.TextColor3 = Color3.fromRGB(150, 150, 150); WordText.TextSize = 14
+local WordText = Instance.new("TextLabel"); WordText.Name = "Status"; WordText.Parent = MainFrame; WordText.BackgroundTransparency = 1; WordText.Position = UDim2.new(0, 0, 0.25, 0); WordText.Size = UDim2.new(1, 0, 0.15, 0); WordText.Font = Enum.Font.GothamMedium; WordText.Text = (wordCount > 0 and "Loaded " .. wordCount .. " Words (Combined)") or "Error/No Words!"; WordText.TextColor3 = Color3.fromRGB(150, 150, 150); WordText.TextSize = 14
 
 local LetterBox = Instance.new("TextBox"); LetterBox.Name = "Input"; LetterBox.Parent = MainFrame; LetterBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40); LetterBox.Position = UDim2.new(0.05, 0, 0.45, 0); LetterBox.Size = UDim2.new(0.65, 0, 0.25, 0); LetterBox.Font = Enum.Font.GothamBold; LetterBox.PlaceholderText = "Type letters here..."; LetterBox.Text = ""; LetterBox.TextColor3 = Color3.fromRGB(255, 255, 255); LetterBox.TextSize = 16
 local BoxCorner = Instance.new("UICorner"); BoxCorner.Parent = LetterBox
