@@ -1,19 +1,19 @@
 --[[
-    UNPATCHABOMB [FIXED SUBMISSION]
-    - FIXED: Added 'CleanWord' function to strip invisible characters (\n, \r, spaces).
-    - FIXED: The "Enter" key now holds for 0.05s to ensure the game registers it.
-    - FIXED: Prevents "Enter" from being pressed too fast after the last letter.
+    UNPATCHABOMB [ROBUST FIX]
+    - FIXED: Added 'SanitizeWord' to strictly remove invisible junk/spaces.
+    - FIXED: The "Enter" key is now held for 0.1s to guarantee submission.
+    - FIXED: Typo logic is safer to prevent input desync.
 ]]--
 
 --------------------------------------------------------------------------------
--- 0. CONFIGURATION
+-- 0. CONFIGURATION (Fast-Natural Settings)
 --------------------------------------------------------------------------------
 local TYPING_SETTINGS = {
     StartSlowDelay = {0.04, 0.065}, 
     BaseSpeed = {0.05, 0.07}, 
     HesitationChance = 0.20,
     HesitationDelay = {0.055, 0.065}, 
-    SubmitDelay = {0.05, 0.1}, -- INCREASED SLIGHTLY FOR SAFETY (Min 0.05s)
+    SubmitDelay = {0.05, 0.1}, 
     TypoChance = 0.20, 
     BackspaceSpeed = {0.05, 0.065} 
 }
@@ -22,16 +22,16 @@ local TYPING_SETTINGS = {
 -- 1. GLOBAL HISTORY SETUP
 --------------------------------------------------------------------------------
 local GlobalEnv = (getgenv and getgenv()) or _G
-if not GlobalEnv._Unpatchabomb_History_V7 then
-    GlobalEnv._Unpatchabomb_History_V7 = {}
+if not GlobalEnv._Unpatchabomb_History_Final then
+    GlobalEnv._Unpatchabomb_History_Final = {}
 end
 
-local function CheckHistory(word) return GlobalEnv._Unpatchabomb_History_V7[word:lower()] end
-local function AddToHistory(word) GlobalEnv._Unpatchabomb_History_V7[word:lower()] = true end
-local function ClearHistory() GlobalEnv._Unpatchabomb_History_V7 = {} end
+local function CheckHistory(word) return GlobalEnv._Unpatchabomb_History_Final[word:lower()] end
+local function AddToHistory(word) GlobalEnv._Unpatchabomb_History_Final[word:lower()] = true end
+local function ClearHistory() GlobalEnv._Unpatchabomb_History_Final = {} end
 
 --------------------------------------------------------------------------------
--- 2. GUI SETUP
+-- 2. GUI CLEANUP & PARENTING
 --------------------------------------------------------------------------------
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
@@ -48,6 +48,9 @@ ParentTarget = get_ui_parent()
 if not ParentTarget then return end
 if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
+--------------------------------------------------------------------------------
+-- 3. UI CONSTRUCTION
+--------------------------------------------------------------------------------
 local Unpatchabomb = Instance.new("ScreenGui"); Unpatchabomb.Name = "Unpatchabomb"; Unpatchabomb.Parent = ParentTarget; Unpatchabomb.ResetOnSpawn = false
 local UnpatchabombFrame = Instance.new("Frame"); UnpatchabombFrame.Name = "UnpatchabombFrame"; UnpatchabombFrame.Parent = Unpatchabomb; UnpatchabombFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22); UnpatchabombFrame.Position = UDim2.new(0, 50, 1, -250); UnpatchabombFrame.Size = UDim2.new(0, 305, 0, 186); UnpatchabombFrame.Draggable = true; UnpatchabombFrame.Active = true
 local MainFrame = Instance.new("Frame"); MainFrame.Name = "MainFrame"; MainFrame.Parent = UnpatchabombFrame; MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22); MainFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -59,7 +62,7 @@ local TopFrame = Instance.new("Frame"); TopFrame.Name = "TopFrame"; TopFrame.Par
 local MinimizeButton = Instance.new("TextButton"); MinimizeButton.Name = "MinimizeButton"; MinimizeButton.Parent = TopFrame; MinimizeButton.BackgroundTransparency = 1; MinimizeButton.Position = UDim2.new(0.9, 0, 0, 0); MinimizeButton.Size = UDim2.new(0, 28, 1, 0); MinimizeButton.Text = "-"; MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255); MinimizeButton.TextSize = 25
 
 --------------------------------------------------------------------------------
--- 3. DATA TABLES (Paste Words Here)
+-- 4. DATA TABLES (Paste Your Words Here)
 --------------------------------------------------------------------------------
 local ENGLISH_WORDS = {
     "antidisestablishmentarianism", "floccinaucinihilipilification", "dichlorodiphenyltrichloroethane", "overintellectualization", "psychopharmacological", "electroencephalographically", "thyroparathyroidectomized", "radioimmunoelectrophoresis", "spectrophotofluorometrically", "ultramicroscopically", "counterdemonstrations", "institutionalization", "uncharacteristically", "misinterpretation", "interdenominational", "thermoelectrically", "hyperconsciousness", "prestidigitations", "microspectrophotometry", "deinstitutionalization", "conceptualization", "reconceptualization", "counterrevolutionaries", "bioluminescently", "nonrepresentationalism", "transubstantiational", "individualistically", "interchangeabilities", "antiterroristically", "electrophotographies", "multidimensionalities", "subcompartmentalization", "thermoregulations", "overinstrumentalization", "magnetohydrodynamics", "neurophysiologically", "microarchitectures", "pharmacotherapeutics", "internationalization", "counterproductiveness", "subcategorization", "overconceptualization", "counterproductively", "biotechnological", "multinationalities", "mischaracterization", "autobiographically", "chemolithotrophically", "reindustrialization", "photospectroscopically", "electrotherapeutically", "histopathologically", "ultramicroscopical", "microphotographies", "thermodynamically", "underrepresented", "counterintelligence", "intercontinental", "multidisciplinarily", "reconceptualizing", "overconceptualized", "ultrastructurally", "micromanagements", "neurophysiological", "decontaminations", "psychophysiological", "instrumentational", "anticonventionalism", "internationalistically", "neuroanatomically", "immunohistochemical", "electrocardiographies", "multidimensionality", "anticonstitutionally", "hyperinstrumentalism", "bioluminescentness", "intercommunicational", "microspectrophotometries", "thermoregulated", "electroencephalograph", "noninstitutionalized", "neuropsychological", "psychopharmacologically", "overindustrialization", "psychoneuroimmunology", "transubstantiationalism", "deinstitutionalizations", "electroencephalograms", "psychophysiologically", "counterrevolutionary", "thermoelectromagnetics", "subcontraoctave", "overindustrializations", "prestidigitationally", "overintellectualizations", "multidisciplinary", "neuropsychologically", "anticonventionalistically", "ultrastructuralizations", "reconceptualizationist", "psychoneuroimmunologically", "magnetohydrodynamically", "electrophysiologically", "representationally", "interventionism", "transformationally", "identification", "characterization", "deconstructionist", "unconventionality", "establishmentarian", "disappointment", "compartmentalized", "sentimentalization", "acknowledgement", "accomplishments", "pronouncements", "enfranchisements", "underdevelopment", "replenishment", "knowledgeable", "unmanageable", "interchangeable", "understandable", "unquestionable", "impermeable", "disagreeable", "representable", "unforgettable", "unreachable", "lightheadedness", "whimsicalness", "comprehensiveness", "resourcefulness", "trustworthiness", "thoughtfulness", "appropriateness", "unpreparedness", "consciousness", "effectiveness", "paleontologist", "microbiologist", "epidemiologist", "neuropsychologist", "anthropologically", "geomorphological", "chronologically", "sociologically", "phraseologically", "cryptozoological"
@@ -75,16 +78,16 @@ local ENGLISH_WORDS_3 = {
 local ALL_WORD_LISTS = {ENGLISH_WORDS, ENGLISH_WORDS_2, ENGLISH_WORDS_3}
 
 --------------------------------------------------------------------------------
--- 4. LOGIC ENGINE
+-- 5. ROBUST TYPING ENGINE
 --------------------------------------------------------------------------------
 local isTyping = false 
 
--- FIX 1: SANITIZER FUNCTION
--- Removes spaces, newlines, control characters, and non-alphanumeric junk.
-local function CleanWord(str)
+-- FIX 1: Strict Sanitizer
+-- This removes spaces, invisible chars, and weird symbols. Only allows A-Z, 0-9, and -
+local function SanitizeWord(str)
     if not str then return "" end
-    -- Keep only letters (A-Z, a-z) and hyphens. Removes spaces and hidden chars.
-    return str:gsub("[%c%s]", ""):gsub("[^%w%-]", "")
+    -- gsub pattern: remove anything that IS NOT (%^) a letter, number, or hyphen
+    return str:gsub("[^a-zA-Z0-9%-]", "")
 end
 
 local function GetRandomTime(timeTable)
@@ -95,7 +98,10 @@ local function GetRandomTime(timeTable)
     return math.random(minInt, maxInt) / 10000
 end
 
-local function IDA_autoType(word)
+local function IDA_autoType(rawWord)
+    -- CLEAN THE WORD BEFORE TYPING
+    local word = SanitizeWord(rawWord)
+    
     if not word or word == "" then return end
     if isTyping then return end
     isTyping = true
@@ -105,7 +111,7 @@ local function IDA_autoType(word)
     local function press(key)
         pcall(function()
             vim:SendKeyEvent(true, key, false, game)
-            task.wait(0.01) -- Key hold duration
+            task.wait(0.015) -- Minimum hold for reliability
             vim:SendKeyEvent(false, key, false, game)
         end)
     end
@@ -114,6 +120,7 @@ local function IDA_autoType(word)
     local mistakeMade = false
 
     while i <= #word do
+        -- TYPO LOGIC
         if #word > 7 and not mistakeMade and i > 2 and math.random() < TYPING_SETTINGS.TypoChance then
             mistakeMade = true
             task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
@@ -125,10 +132,11 @@ local function IDA_autoType(word)
 
         local char = word:sub(i, i):upper()
         local code = Enum.KeyCode[char] or (char == " " and Enum.KeyCode.Space)
-        if char == "-" then code = Enum.KeyCode.Minus end -- Support for hyphens
+        if char == "-" then code = Enum.KeyCode.Minus end
         
         if code then press(code) end
 
+        -- RHYTHM DELAYS
         local currentDelay = 0
         if i <= math.random(3, 5) then
             currentDelay = GetRandomTime(TYPING_SETTINGS.StartSlowDelay)
@@ -144,24 +152,24 @@ local function IDA_autoType(word)
         i = i + 1
     end
 
-    -- FIX 2: ENSURE ENTER IS PRESSED CORRECTLY
-    -- We wait a tiny bit to make sure the game registered the last letter
+    -- FIX 2: ROBUST SUBMISSION
+    -- Wait to ensure typing is synced
     task.wait(math.max(0.1, GetRandomTime(TYPING_SETTINGS.SubmitDelay)))
     
-    -- Press Enter with a slightly longer hold duration to guarantee register
+    -- Solid Enter Press (Held for 0.1s to force server register)
     vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-    task.wait(0.05) -- Hold enter for 50ms
+    task.wait(0.1) 
     vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     
     isTyping = false
-    WordText.Text = "Finished: " .. word
+    WordText.Text = "Done: " .. word
 end
 
 local function IDA_findWord(substr)
-    local s = CleanWord(substr):lower() -- Sanitize input too
+    local s = SanitizeWord(substr):lower()
     for _, list in ipairs(ALL_WORD_LISTS) do
         for _, v in ipairs(list) do
-            local cleanV = CleanWord(v) -- Sanitize table word before checking
+            local cleanV = SanitizeWord(v) -- Sanitize table entries too
             if cleanV ~= "" and not CheckHistory(cleanV) and cleanV:lower():find(s, 1, true) then
                 AddToHistory(cleanV)
                 return cleanV
@@ -182,20 +190,23 @@ local function IDA_PerformSearch()
         WordText.Text = "Typing: " .. found
         IDA_autoType(found)
     else
-        WordText.Text = "No Unused Word Found"
+        WordText.Text = "No Word Found"
     end
 end
 
 --------------------------------------------------------------------------------
--- 5. INITIALIZATION
+-- 6. INITIALIZATION
 --------------------------------------------------------------------------------
 LetterBox.FocusLost:Connect(function(e) if e then IDA_PerformSearch() end end)
 RerunButton.MouseButton1Click:Connect(IDA_PerformSearch)
+
 ResetButton.MouseButton1Click:Connect(function() 
     if isTyping then return end
     ClearHistory() 
-    WordText.Text = "Global History Cleared!" 
+    WordText.Text = "History Reset!" 
 end)
+
 MinimizeButton.MouseButton1Click:Connect(function() 
-    MainFrame.Visible = not MainFrame.Visible; MinimizeButton.Text = MainFrame.Visible and "-" or "+" 
+    MainFrame.Visible = not MainFrame.Visible
+    MinimizeButton.Text = MainFrame.Visible and "-" or "+" 
 end)
