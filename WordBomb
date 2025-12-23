@@ -9,8 +9,8 @@
 -- 0. CONFIGURATION (Fast-Natural Settings)
 --------------------------------------------------------------------------------
 local TYPING_SETTINGS = {
-    StartSlowDelay = {0.04, 0.065}, 
-    BaseSpeed = {0.05, 0.07}, 
+    StartSlowDelay = {0.065, 0.075}, 
+    BaseSpeed = {0.06, 0.07}, 
     HesitationChance = 0.20,
     HesitationDelay = {0.055, 0.065}, 
     SubmitDelay = {0.05, 0.1}, 
