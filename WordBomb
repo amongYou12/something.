@@ -10,7 +10,7 @@
 -- 0. CONFIGURATION
 --------------------------------------------------------------------------------
 -- The massive dictionary URL
-local GitHubURL = "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
+local GitHubURL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/CollinsScrabble"
 
 -- IMPORTANT: Only load words longer than this (Prevents short/weak words)
 local MIN_WORD_LENGTH = 10 
