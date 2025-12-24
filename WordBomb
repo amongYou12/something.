@@ -16,7 +16,7 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt"
 }
 
-local MIN_WORD_LENGTH = 6
+local MIN_WORD_LENGTH = 7
 
 -- Ranges widened for humanization
 local TYPING_SETTINGS = {
