@@ -13,7 +13,7 @@
 local MIN_LETTER_COUNT = 3
 
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/ll_blacklist.lua"
-local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/wb_blacklist.lua"
+local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForWordbomb.txt"
 
 local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
