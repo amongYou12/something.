@@ -9,7 +9,7 @@
 --------------------------------------------------------------------------------
 -- 0. CONFIGURATION & SETTINGS
 --------------------------------------------------------------------------------
-local MIN_LETTER_COUNT = 3
+local MIN_LETTER_COUNT = 4
 
 -- URLs
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/ll_blacklist.lua"
