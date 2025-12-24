@@ -22,13 +22,13 @@ local MIN_WORD_LENGTH = 10
 
 -- These ranges are now WIDER to feel more human.
 local TYPING_SETTINGS = {
-    StartSlowDelay = {0.085, 0.095}, 
+    StartSlowDelay = {0.055, 0.095}, 
     BaseSpeed = {0.055, 0.075}, 
     HesitationChance = 0.65,
-    HesitationDelay = {0.085, 0.12}, 
+    HesitationDelay = {0.585, 0.12}, 
     SubmitDelay = {0.05, 0.1}, 
     TypoChance = 0.35, 
-    BackspaceSpeed = {0.085, 0.14} 
+    BackspaceSpeed = {0.065, 0.14} 
 }
 local LOCK_IN_SPEED_BOOST = 0.02
 local FLEX_SETTINGS = {
