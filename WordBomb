@@ -1,10 +1,7 @@
 --[[
-    UNPATCHABOMB [ULTIMATE EDITION v3]
-    - MODES: 
-      > First: Only words STARTING with input.
-      > Flex: Longest word + Frantic Typing.
-      > Short: Shortest word.
-      > Lock In: Pure Speed boost.
+    UNPATCHABOMB [ULTIMATE EDITION v4]
+    - BEHAVIOR: Skips the 1st letter (User request).
+    - MODES: First, Flex, Short, Lock In.
     - LAYOUT: 5-Button Smart Interface.
 ]]--
 
@@ -18,7 +15,6 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/gangulwar/JKLM-Bomb-Party-BOT/refs/heads/main/dictionary.txt",
     "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"-- Link 2 (Replace this with your 2nd url)
 }
-
 local MIN_WORD_LENGTH = 10 
 
 local TYPING_SETTINGS = {
@@ -30,6 +26,7 @@ local TYPING_SETTINGS = {
     TypoChance = 0.35, 
     BackspaceSpeed = {0.05, 0.065} 
 }
+
 -- MODIFIERS
 local LOCK_IN_SPEED_BOOST = 0.015
 local FLEX_SETTINGS = {
@@ -107,8 +104,7 @@ local BoxStroke = Instance.new("UIStroke"); BoxStroke.Parent = LetterBox; BoxStr
 local RerunButton = Instance.new("TextButton"); RerunButton.Name = "Run"; RerunButton.Parent = MainFrame; RerunButton.BackgroundColor3 = Color3.fromRGB(46, 204, 113); RerunButton.Position = UDim2.new(0.73, 0, 0.45, 0); RerunButton.Size = UDim2.new(0.22, 0, 0.25, 0); RerunButton.Font = Enum.Font.GothamBold; RerunButton.Text = "▶"; RerunButton.TextColor3 = Color3.fromRGB(25, 25, 25); RerunButton.TextSize = 18
 local RunCorner = Instance.new("UICorner"); RunCorner.Parent = RerunButton
 
--- BOTTOM BUTTONS ROW (5 Buttons: Reset | First | Short | Flex | Lock)
--- Width calculation: 1.0 total. margins ~0.04. 0.96 left. 5 buttons. ~0.18 width each. 0.015 gap.
+-- BOTTOM BUTTONS ROW (Reset | First | Short | Flex | Lock)
 local function CreateBtn(name, text, pos, color)
     local btn = Instance.new("TextButton"); btn.Name = name; btn.Parent = MainFrame
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -151,7 +147,7 @@ end)
 local isTyping = false 
 local isFlexMode = false
 local isShortMode = false
-local isFirstMode = false -- First Letter Mode
+local isFirstMode = false
 local isLockInMode = false
 
 local function SanitizeWord(str)
@@ -193,7 +189,8 @@ local function IDA_autoType(rawWord)
         end)
     end
 
-    for i = 1, #word do
+    -- [MODIFICATION]: Start loop at 2 to skip the first letter
+    for i = 2, #word do
         if #word > 7 and i == 4 and math.random() < activeTypoChance then
             task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
             press(Enum.KeyCode.Q)
@@ -225,7 +222,7 @@ local function IDA_PerformSearch()
     local input = SanitizeWord(LetterBox.Text):lower()
     if input == "" then return end
     
-    -- Status Text Logic
+    -- Status Text
     local statusParts = {}
     if isFirstMode then table.insert(statusParts, "First") end
     if isFlexMode then table.insert(statusParts, "Flex") end
@@ -237,19 +234,15 @@ local function IDA_PerformSearch()
     
     local found = nil
     
-    -- Helper to check if a word matches the criteria (Contains vs Starts With)
     local function MatchesCriteria(w)
         if isFirstMode then
-            -- Check if 'w' starts with 'input'
             return w:lower():sub(1, #input) == input
         else
-            -- Check if 'w' contains 'input'
             return w:lower():find(input, 1, true)
         end
     end
 
     if isFlexMode then
-        -- 1. LONGEST MATCH
         local bestWord = ""
         for _, v in ipairs(ALL_WORDS) do
             if MatchesCriteria(v) then
@@ -262,7 +255,6 @@ local function IDA_PerformSearch()
         if bestWord ~= "" then found = bestWord end
 
     elseif isShortMode then
-        -- 2. SHORTEST MATCH
         local bestWord = nil
         local minLen = 999
         for _, v in ipairs(ALL_WORDS) do
@@ -279,7 +271,6 @@ local function IDA_PerformSearch()
         if bestWord then found = bestWord end
 
     else
-        -- 3. NORMAL (FIRST VALID)
         for _, v in ipairs(ALL_WORDS) do
             if MatchesCriteria(v) then
                 local cleanV = SanitizeWord(v)
@@ -318,39 +309,23 @@ ResetButton.MouseButton1Click:Connect(function()
     WordText.Text = "Loaded " .. #ALL_WORDS .. " Words"
 end)
 
--- Visual Updater
 local function UpdateVisuals()
-    -- First
     FirstButton.Text = isFirstMode and "First: ON" or "First: OFF"
     FirstButton.TextColor3 = isFirstMode and Color3.fromRGB(230, 126, 34) or Color3.fromRGB(150, 150, 150)
     
-    -- Flex
     FlexButton.Text = isFlexMode and "Flex: ON" or "Flex: OFF"
     FlexButton.TextColor3 = isFlexMode and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(150, 150, 150)
 
-    -- Short
     ShortButton.Text = isShortMode and "Short: ON" or "Short: OFF"
     ShortButton.TextColor3 = isShortMode and Color3.fromRGB(241, 196, 15) or Color3.fromRGB(150, 150, 150)
 
-    -- Lock
     LockInButton.Text = isLockInMode and "Lock: ON" or "Lock: OFF"
     LockInButton.TextColor3 = isLockInMode and Color3.fromRGB(52, 152, 219) or Color3.fromRGB(150, 150, 150)
 end
 
 FirstButton.MouseButton1Click:Connect(function() isFirstMode = not isFirstMode; UpdateVisuals() end)
-
-FlexButton.MouseButton1Click:Connect(function()
-    isFlexMode = not isFlexMode
-    if isFlexMode then isShortMode = false end
-    UpdateVisuals()
-end)
-
-ShortButton.MouseButton1Click:Connect(function()
-    isShortMode = not isShortMode
-    if isShortMode then isFlexMode = false end
-    UpdateVisuals()
-end)
-
+FlexButton.MouseButton1Click:Connect(function() isFlexMode = not isFlexMode; if isFlexMode then isShortMode = false end; UpdateVisuals() end)
+ShortButton.MouseButton1Click:Connect(function() isShortMode = not isShortMode; if isShortMode then isFlexMode = false end; UpdateVisuals() end)
 LockInButton.MouseButton1Click:Connect(function() isLockInMode = not isLockInMode; UpdateVisuals() end)
 
 MinimizeButton.MouseButton1Click:Connect(function()
