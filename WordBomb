@@ -1,17 +1,19 @@
 --[[
-    UNPATCHABOMB [v13 - SMART INPUT EDITION]
-    - NEW: In "First Mode", the script skips letters you have already typed.
-    - FEATURES: Human Flex Typing, Session Blacklist, Save/Blacklist, Full UI.
+    UNPATCHABOMB [v14 - STABLE & FIXED]
+    - FIXED: GUI not appearing (Cleaned up syntax errors).
+    - FEATURE: Smart Input (Skips typed letters in First Mode).
+    - FEATURE: Human Flex Typing (Typos, bursts, hesitation).
+    - FEATURE: Session Blacklist (Prevents repeating words).
 ]]--
 
 --------------------------------------------------------------------------------
--- 0. CONFIGURATION
+-- 0. CONFIGURATION & SETTINGS
 --------------------------------------------------------------------------------
 local MIN_LETTER_COUNT = 3
 
+-- URLs
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/ll_blacklist.lua"
 local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/wb_blacklist.lua"
-
 local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
     "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt",
@@ -19,7 +21,6 @@ local DictionaryURLs = {
     "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt"
 }
 
--- TYPING SETTINGS (Humanized)
 local TYPING_SETTINGS = {
     BaseSpeed = {0.070, 0.085},      
     StartSlowDelay = {0.08, 0.12},   
@@ -39,8 +40,13 @@ local FLEX_MODIFIERS = {
 local LOCK_IN_SPEED_BOOST = 0.040 
 
 --------------------------------------------------------------------------------
--- 1. UTILS & SETUP
+-- 1. VARIABLES & SERVICES
 --------------------------------------------------------------------------------
+local vim = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+
 local LL_Enabled, WB_Enabled = false, false
 local LL_Table, WB_Table = {}, {}
 local ALL_WORDS, SAVED_LIST_UI = {}, {}
@@ -50,38 +56,63 @@ local isTyping, lastFound, isLockIn = false, "", false
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
 
+-- UTILITY FUNCTIONS
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
 local function Sanitize(s) return s:gsub("%s+", ""):gsub("[^a-zA-Z0-9%-]", "") end
 
-local vim = game:GetService("VirtualInputManager")
-local UserInputService = game:GetService("UserInputService")
+local function FetchBlacklist(url, target)
+    local s, content = pcall(function() return game:HttpGet(url) end)
+    if s then
+        local func = loadstring(content)
+        if func then
+            local data = func()
+            if type(data) == "table" then
+                for _, word in ipairs(data) do target[word:lower()] = true end
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function IsBlacklisted(w)
+    local low = w:lower()
+    if LL_Enabled and LL_Table[low] then return true end
+    if WB_Enabled and WB_Table[low] then return true end
+    if SESSION_BLACKLIST[low] then return true end
+    return false
+end
+
+local function GetRandomTime(tbl)
+    return (math.random(tbl[1]*1000, tbl[2]*1000) / 1000)
+end
 
 --------------------------------------------------------------------------------
 -- 2. UI CONSTRUCTION
 --------------------------------------------------------------------------------
-local CoreGui = game:GetService("CoreGui")
-local Parent = (gethui and gethui()) or CoreGui:FindFirstChild("RobloxGui") or CoreGui
-if Parent:FindFirstChild("Unpatchabomb") then Parent.Unpatchabomb:Destroy() end
+local ParentTarget = (gethui and gethui()) or CoreGui:FindFirstChild("RobloxGui") or CoreGui
+if not pcall(function() return ParentTarget.Name end) then ParentTarget = Players.LocalPlayer.PlayerGui end
+if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
-local Screen = Instance.new("ScreenGui"); Screen.Name = "Unpatchabomb"; Screen.Parent = Parent; Screen.ResetOnSpawn = false
+local Screen = Instance.new("ScreenGui"); Screen.Name = "Unpatchabomb"; Screen.Parent = ParentTarget; Screen.ResetOnSpawn = false
 local Main = Instance.new("Frame"); Main.Parent = Screen; Main.BackgroundColor3 = Color3.fromRGB(20,20,20); Main.Size = UDim2.new(0, 380, 0, 340); Main.Position = UDim2.new(0.5, -190, 0.5, -170); Main.BorderSizePixel = 0
 local Corner = Instance.new("UICorner"); Corner.Parent = Main
 
 local Top = Instance.new("Frame"); Top.Parent = Main; Top.BackgroundColor3 = Color3.fromRGB(30,30,30); Top.Size = UDim2.new(1,0,0,35)
 local TopCorner = Instance.new("UICorner"); TopCorner.Parent = Top
-local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v13 [SMART SKIP]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = "GothamBold"; Title.TextXAlignment = "Left"; Title.TextSize = 14
+local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v14 [STABLE]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
 
-local WordStatus = Instance.new("TextLabel"); WordStatus.Parent = Main; WordStatus.Position = UDim2.new(0,0,0.11,0); WordStatus.Size = UDim2.new(1,0,0.08,0); WordStatus.BackgroundTransparency = 1; WordStatus.Text = "Dictionary Loading..."; WordStatus.TextColor3 = Color3.fromRGB(200,200,200); WordStatus.Font = "GothamMedium"; WordStatus.TextSize = 13
+local WordStatus = Instance.new("TextLabel"); WordStatus.Parent = Main; WordStatus.Position = UDim2.new(0,0,0.11,0); WordStatus.Size = UDim2.new(1,0,0.08,0); WordStatus.BackgroundTransparency = 1; WordStatus.Text = "Dictionary Loading..."; WordStatus.TextColor3 = Color3.fromRGB(200,200,200); WordStatus.Font = Enum.Font.GothamMedium; WordStatus.TextSize = 13
 
-local Input = Instance.new("TextBox"); Input.Parent = Main; Input.Position = UDim2.new(0.05,0,0.20,0); Input.Size = UDim2.new(0.65,0,0.11,0); Input.BackgroundColor3 = Color3.fromRGB(40,40,40); Input.Text = ""; Input.PlaceholderText = "Input letters..."; Input.TextColor3 = Color3.new(1,1,1); Input.Font = "GothamBold"
+local Input = Instance.new("TextBox"); Input.Parent = Main; Input.Position = UDim2.new(0.05,0,0.20,0); Input.Size = UDim2.new(0.65,0,0.11,0); Input.BackgroundColor3 = Color3.fromRGB(40,40,40); Input.Text = ""; Input.PlaceholderText = "Input letters..."; Input.TextColor3 = Color3.new(1,1,1); Input.Font = Enum.Font.GothamBold
 Instance.new("UICorner").Parent = Input
 
-local RunBtn = Instance.new("TextButton"); RunBtn.Parent = Main; RunBtn.Position = UDim2.new(0.73,0,0.20,0); RunBtn.Size = UDim2.new(0.22,0,0.11,0); RunBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113); RunBtn.Text = "▶"; RunBtn.TextSize = 18; RunBtn.Font = "GothamBold"
+local RunBtn = Instance.new("TextButton"); RunBtn.Parent = Main; RunBtn.Position = UDim2.new(0.73,0,0.20,0); RunBtn.Size = UDim2.new(0.22,0,0.11,0); RunBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113); RunBtn.Text = "▶"; RunBtn.TextSize = 18; RunBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner").Parent = RunBtn
 
 local function Btn(text, pos, size, color)
-    local b = Instance.new("TextButton"); b.Parent = Main; b.Position = pos; b.Size = size; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = "GothamBold"; b.TextSize = 10
+    local b = Instance.new("TextButton"); b.Parent = Main; b.Position = pos; b.Size = size; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.GothamBold; b.TextSize = 10
     Instance.new("UICorner").Parent = b
     return b
 end
@@ -104,33 +135,15 @@ Instance.new("UIListLayout").Parent = ListScroll
 local CopyBtn = Btn("Copy All to Clipboard", UDim2.new(0.1,0,0.85,0), UDim2.new(0.8,0,0.1,0), Color3.fromRGB(60,60,60))
 CopyBtn.Parent = ListView
 
--- DRAGGING
+-- DRAGGING LOGIC
 local dragging, dragInput, dragStart, startPos
 Top.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = Main.Position; input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end) end end)
 Top.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
 UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then local delta = input.Position - dragStart; Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 
 --------------------------------------------------------------------------------
--- 3. HUMANIZED TYPING ENGINE (WITH SMART SKIP)
+-- 3. LOGIC & TYPING
 --------------------------------------------------------------------------------
-local function FetchBlacklist(url, target)
-    local s, content = pcall(function() return game:HttpGet(url) end)
-    if s then local f = loadstring(content); if f then local d = f(); if type(d)=="table" then for _,w in ipairs(d) do target[w:lower()]=true end return true end end end
-    return false
-end
-
-local function IsBlacklisted(w)
-    local low = w:lower()
-    if LL_Enabled and LL_Table[low] then return true end
-    if WB_Enabled and WB_Table[low] then return true end
-    if SESSION_BLACKLIST[low] then return true end
-    return false
-end
-
-local function GetRandomTime(tbl)
-    return (math.random(tbl[1]*1000, tbl[2]*1000) / 1000)
-end
-
 local function TypeWord(word, skipCount)
     isTyping = true
     local isFlex = FlexB.Text:find("ON")
@@ -164,7 +177,6 @@ local function TypeWord(word, skipCount)
         
         -- DELAYS
         local currentDelay = GetRandomTime(TYPING_SETTINGS.BaseSpeed)
-        
         if isFlex then
             currentDelay = currentDelay + FLEX_MODIFIERS.SpeedAdder
             if math.random() < FLEX_MODIFIERS.BurstChance then currentDelay = currentDelay - FLEX_MODIFIERS.BurstReduction end
@@ -172,8 +184,8 @@ local function TypeWord(word, skipCount)
         else
             if math.random() < TYPING_SETTINGS.HesitationChance then currentDelay = currentDelay + GetRandomTime(TYPING_SETTINGS.HesitationDelay) end
         end
-
         if isLockIn then currentDelay = currentDelay - LOCK_IN_SPEED_BOOST end
+        
         task.wait(math.max(0.01, currentDelay))
     end
     
@@ -183,18 +195,6 @@ local function TypeWord(word, skipCount)
     vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     isTyping = false
 end
-
---------------------------------------------------------------------------------
--- 4. SEARCH ENGINE
---------------------------------------------------------------------------------
-task.spawn(function()
-    local count = 0
-    for _, url in ipairs(DictionaryURLs) do
-        local s, content = pcall(function() return game:HttpGet(url) end)
-        if s then for line in content:gmatch("[^\r\n]+") do table.insert(ALL_WORDS, line) count=count+1 end end
-    end
-    WordStatus.Text = "Loaded " .. count .. " Words"
-end)
 
 local function DoSearch()
     if isTyping then return end
@@ -241,13 +241,9 @@ local function DoSearch()
             AddHist(found)
             task.wait(0.1) 
             
-            -- NEW: Calculate Skip Count
+            -- SKIP LOGIC
             local skip = 0
-            if isFirstMode then 
-                -- If we are in "First" mode, the input IS the start of the word.
-                -- So we skip the length of the input.
-                skip = #query 
-            end
+            if isFirstMode then skip = #query end
             
             TypeWord(found, skip)
         else
@@ -258,7 +254,39 @@ local function DoSearch()
 end
 
 --------------------------------------------------------------------------------
--- 5. BUTTON EVENTS
+-- 4. BUTTON CONNECTIONS & LOADER
 --------------------------------------------------------------------------------
+task.spawn(function()
+    local count = 0
+    for _, url in ipairs(DictionaryURLs) do
+        local s, content = pcall(function() return game:HttpGet(url) end)
+        if s then for line in content:gmatch("[^\r\n]+") do table.insert(ALL_WORDS, line) count=count+1 end end
+    end
+    WordStatus.Text = "Loaded " .. count .. " Words"
+end)
+
 FirstB.MouseButton1Click:Connect(function() local on=FirstB.Text:find("OFF"); FirstB.Text=on and "First: ON" or "First: OFF"; FirstB.BackgroundColor3=on and Color3.fromRGB(230,126,34) or Color3.fromRGB(50,50,50) end)
-ShortB.MouseButton1Click:Connect(function() local on=ShortB.Text:find("OFF"); ShortB.Text=on and "Short: ON" or "Short: OFF"; ShortB.BackgroundColor3=on and Color3.fromRGB(241,196,15) or Color3.fromRGB(50,50,50); if on then FlexB.Text="Fl
+ShortB.MouseButton1Click:Connect(function() local on=ShortB.Text:find("OFF"); ShortB.Text=on and "Short: ON" or "Short: OFF"; ShortB.BackgroundColor3=on and Color3.fromRGB(241,196,15) or Color3.fromRGB(50,50,50); if on then FlexB.Text="Flex: OFF"; FlexB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
+FlexB.MouseButton1Click:Connect(function() local on=FlexB.Text:find("OFF"); FlexB.Text=on and "Flex: ON" or "Flex: OFF"; FlexB.BackgroundColor3=on and Color3.fromRGB(46,204,113) or Color3.fromRGB(50,50,50); if on then ShortB.Text="Short: OFF"; ShortB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
+LockB.MouseButton1Click:Connect(function() isLockIn=not isLockIn; LockB.Text=isLockIn and "Lock: ON" or "Lock: OFF"; LockB.BackgroundColor3=isLockIn and Color3.fromRGB(52,152,219) or Color3.fromRGB(50,50,50) end)
+
+SaveB.MouseButton1Click:Connect(function()
+    if lastFound == "" then return end
+    SESSION_BLACKLIST[lastFound:lower()] = true
+    table.insert(SAVED_LIST_UI, lastFound)
+    local l = Instance.new("TextLabel"); l.Parent = ListScroll; l.Size = UDim2.new(1,0,0,20); l.BackgroundTransparency = 1; l.TextColor3 = Color3.new(0.8,0.8,0.8); l.TextSize = 10; l.Text = lastFound; l.Font = Enum.Font.Gotham
+    ListScroll.CanvasSize = UDim2.new(0,0,0,#SAVED_LIST_UI * 20)
+    WordStatus.Text = "Blacklisted: " .. lastFound
+end)
+
+LL_Btn.MouseButton1Click:Connect(function() LL_Enabled=not LL_Enabled; if LL_Enabled and next(LL_Table)==nil then FetchBlacklist(LL_BLACKLIST_URL, LL_Table) end; LL_Btn.BackgroundColor3=LL_Enabled and Color3.fromRGB(211,84,0) or Color3.fromRGB(40,40,40); LL_Btn.Text=LL_Enabled and "LL Blacklist: ON" or "Last Letter Blacklist" end)
+WB_Btn.MouseButton1Click:Connect(function() WB_Enabled=not WB_Enabled; if WB_Enabled and next(WB_Table)==nil then FetchBlacklist(WB_BLACKLIST_URL, WB_Table) end; WB_Btn.BackgroundColor3=WB_Enabled and Color3.fromRGB(192,57,43) or Color3.fromRGB(40,40,40); WB_Btn.Text=WB_Enabled and "WB Blacklist: ON" or "Word Bomb Blacklist" end)
+
+ListB.MouseButton1Click:Connect(function() ListView.Visible = not ListView.Visible end)
+CopyBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard(table.concat(SAVED_LIST_UI, ", ")); CopyBtn.Text="Copied!" task.wait(1) CopyBtn.Text="Copy All" end end)
+ResetB.MouseButton1Click:Connect(function() GlobalEnv._UPB_History = {}; WordStatus.Text = "History Cleared" end)
+
+RunBtn.MouseButton1Click:Connect(DoSearch)
+Input.FocusLost:Connect(function(e) if e then DoSearch() end end)
+
+print("UNPATCHABOMB v14 LOADED")
