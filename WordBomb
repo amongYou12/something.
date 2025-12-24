@@ -1,8 +1,9 @@
 --[[
-    UNPATCHABOMB [ULTIMATE EDITION]
-    - SOURCE: Multi-Dictionary Support.
-    - MODES: Flex (Longest), Short (Shortest), Lock In (Fastest).
-    - LOGIC: Mutually exclusive modes & smart history.
+    UNPATCHABOMB [ULTIMATE EDITION v2]
+    - MODES: 
+      > Flex: Longest word + Frantic Typing (Fast but messy).
+      > Short: Shortest word.
+      > Lock In: Pure Speed boost.
 ]]--
 
 --------------------------------------------------------------------------------
@@ -16,19 +17,26 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"-- Link 2 (Replace this with your 2nd url)
 }
 
--- The bot will NEVER type words shorter than this, even in "Short Mode".
 local MIN_WORD_LENGTH = 10 
 
+-- Standard Settings
 local TYPING_SETTINGS = {
     StartSlowDelay = {0.085, 0.095}, 
-    BaseSpeed = {0.065, 0.07}, 
-    HesitationChance = 0.45,
-    HesitationDelay = {0.055, 0.065}, 
+    BaseSpeed = {0.055, 0.075}, 
+    HesitationChance = 0.55,
+    HesitationDelay = {0.075, 0.095}, 
     SubmitDelay = {0.05, 0.1}, 
     TypoChance = 0.35, 
     BackspaceSpeed = {0.05, 0.065} 
 }
+-- MODIFIERS
+local LOCK_IN_SPEED_BOOST = 0.015 -- Seconds to remove (Faster)
 
+local FLEX_SETTINGS = {
+    SpeedBoost = 0.012,       -- Flex is slightly faster
+    AddedTypoChance = 0.20,   -- Flex makes more mistakes (0.40 + 0.20 = 60%)
+    AddedHesitation = 0.15    -- Flex hesitates more (0.60 + 0.15 = 75%)
+}
 
 --------------------------------------------------------------------------------
 -- 1. GLOBAL HISTORY & VARS
@@ -113,7 +121,6 @@ local function CreateBtn(name, text, pos, color)
     return btn
 end
 
--- 0.03 gap start + (0.21 width + 0.04 gap)
 local ResetButton = CreateBtn("Reset", "Reset", UDim2.new(0.03, 0, 0.76, 0), Color3.fromRGB(231, 76, 60))
 local ShortButton = CreateBtn("Short", "Short: OFF", UDim2.new(0.27, 0, 0.76, 0), Color3.fromRGB(150, 150, 150))
 local FlexButton  = CreateBtn("Flex", "Flex: OFF", UDim2.new(0.51, 0, 0.76, 0), Color3.fromRGB(150, 150, 150))
@@ -140,10 +147,9 @@ end)
 -- 4. LOGIC ENGINE
 --------------------------------------------------------------------------------
 local isTyping = false 
-local isFlexMode = false -- Longest
-local isShortMode = false -- Shortest
-local isLockInMode = false -- Speed
-local LOCK_IN_MODIFIER = 0.015 
+local isFlexMode = false
+local isShortMode = false
+local isLockInMode = false
 
 local function SanitizeWord(str)
     if not str then return "" end
@@ -155,10 +161,17 @@ local function GetRandomTime(timeTable)
     local minInt = math.floor(minVal * 10000); local maxInt = math.floor(maxVal * 10000)
     local val = math.random(minInt, maxInt) / 10000
     
+    -- SPEED MODIFIERS
     if isLockInMode then
-        val = val - LOCK_IN_MODIFIER
-        if val < 0.005 then val = 0.005 end
+        val = val - LOCK_IN_SPEED_BOOST
     end
+    
+    if isFlexMode then
+        val = val - FLEX_SETTINGS.SpeedBoost -- Flex is faster (frantic)
+    end
+    
+    -- Safety clamp
+    if val < 0.005 then val = 0.005 end
     
     return val
 end
@@ -168,6 +181,15 @@ local function IDA_autoType(rawWord)
     if not word or word == "" or isTyping then return end
     isTyping = true
     
+    -- CALCULATE DYNAMIC CHANCES
+    local activeTypoChance = TYPING_SETTINGS.TypoChance
+    local activeHesitationChance = TYPING_SETTINGS.HesitationChance
+    
+    if isFlexMode then
+        activeTypoChance = activeTypoChance + FLEX_SETTINGS.AddedTypoChance
+        activeHesitationChance = activeHesitationChance + FLEX_SETTINGS.AddedHesitation
+    end
+
     local vim = game:GetService("VirtualInputManager")
     local function press(key)
         pcall(function()
@@ -178,8 +200,8 @@ local function IDA_autoType(rawWord)
     end
 
     for i = 1, #word do
-        -- Typo Logic
-        if #word > 7 and i == 4 and math.random() < TYPING_SETTINGS.TypoChance then
+        -- Dynamic Typo Logic
+        if #word > 7 and i == 4 and math.random() < activeTypoChance then
             task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
             press(Enum.KeyCode.Q)
             task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
@@ -193,7 +215,12 @@ local function IDA_autoType(rawWord)
         if code then press(code) end
 
         local delay = (i <= 4) and GetRandomTime(TYPING_SETTINGS.StartSlowDelay) or GetRandomTime(TYPING_SETTINGS.BaseSpeed)
-        if math.random() < TYPING_SETTINGS.HesitationChance then delay = delay + GetRandomTime(TYPING_SETTINGS.HesitationDelay) end
+        
+        -- Dynamic Hesitation Logic
+        if math.random() < activeHesitationChance then 
+            delay = delay + GetRandomTime(TYPING_SETTINGS.HesitationDelay) 
+        end
+        
         task.wait(delay)
     end
 
@@ -211,7 +238,7 @@ local function IDA_PerformSearch()
     if input == "" then return end
     
     local statusMsg = "Searching..."
-    if isFlexMode then statusMsg = "Scanning (Longest)..." end
+    if isFlexMode then statusMsg = "Flexing (Frantic)..." end
     if isShortMode then statusMsg = "Scanning (Shortest)..." end
     WordText.Text = statusMsg
     WordText.TextColor3 = Color3.fromRGB(255, 255, 0)
@@ -311,13 +338,13 @@ end
 
 FlexButton.MouseButton1Click:Connect(function()
     isFlexMode = not isFlexMode
-    if isFlexMode then isShortMode = false end -- Disable Short if Flex is on
+    if isFlexMode then isShortMode = false end
     UpdateModes()
 end)
 
 ShortButton.MouseButton1Click:Connect(function()
     isShortMode = not isShortMode
-    if isShortMode then isFlexMode = false end -- Disable Flex if Short is on
+    if isShortMode then isFlexMode = false end
     UpdateModes()
 end)
 
