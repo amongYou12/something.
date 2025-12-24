@@ -1,10 +1,8 @@
 --[[
-    UNPATCHABOMB [ULTIMATE EDITION v5]
-    - NEW: Skips the prefix you typed in the search bar.
-    - BEHAVIOR: 
-      > If search is "TR" and word is "TRUE", it types "UE".
-      > If search is empty, it skips the 1st letter (User request).
-    - MODES: First, Flex, Short, Lock In.
+    UNPATCHABOMB [ULTIMATE EDITION v6]
+    - HUMANIZER: Dynamic Speed Flow (Speed changes per word).
+    - VARIANCE: Wider random ranges for natural rhythm.
+    - FEATURES: First, Flex, Short, Lock In.
 ]]--
 
 --------------------------------------------------------------------------------
@@ -19,8 +17,10 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt"
     -- Link 2 (Replace this with your 2nd url)
 }
+
 local MIN_WORD_LENGTH = 10 
 
+-- These ranges are now WIDER to feel more human.
 local TYPING_SETTINGS = {
     StartSlowDelay = {0.085, 0.095}, 
     BaseSpeed = {0.055, 0.075}, 
@@ -30,9 +30,9 @@ local TYPING_SETTINGS = {
     TypoChance = 0.35, 
     BackspaceSpeed = {0.085, 0.14} 
 }
-local LOCK_IN_SPEED_BOOST = 0.015
+local LOCK_IN_SPEED_BOOST = 0.02
 local FLEX_SETTINGS = {
-    SpeedBoost = 0.012,       
+    SpeedBoost = 0.015,       
     AddedTypoChance = 0.20,   
     AddedHesitation = 0.15    
 }
@@ -135,12 +135,17 @@ local function SanitizeWord(str)
     return str:gsub("[^a-zA-Z0-9%-]", "")
 end
 
-local function GetRandomTime(timeTable)
+local function GetRandomTime(timeTable, multiplier)
+    -- Multiplier simulates the "Mood" of the word (Fast or Slow flow)
     local minVal = timeTable[1]; local maxVal = timeTable[2]
     local minInt = math.floor(minVal * 10000); local maxInt = math.floor(maxVal * 10000)
     local val = math.random(minInt, maxInt) / 10000
+    
+    if multiplier then val = val * multiplier end
+    
     if isLockInMode then val = val - LOCK_IN_SPEED_BOOST end
     if isFlexMode then val = val - FLEX_SETTINGS.SpeedBoost end
+    
     if val < 0.005 then val = 0.005 end
     return val
 end
@@ -150,6 +155,11 @@ local function IDA_autoType(rawWord, inputLength)
     if not word or word == "" or isTyping then return end
     isTyping = true
     
+    -- DYNAMIC WORD FLOW: 
+    -- Picks a random speed multiplier (0.8x to 1.3x) for THIS SPECIFIC WORD.
+    -- This makes some words naturally faster and others lazier.
+    local WordFlowFactor = (math.random(80, 130) / 100)
+
     local activeTypoChance = TYPING_SETTINGS.TypoChance
     local activeHesitationChance = TYPING_SETTINGS.HesitationChance
     if isFlexMode then
@@ -166,25 +176,34 @@ local function IDA_autoType(rawWord, inputLength)
         end)
     end
 
-    -- Skip rule: Skip what user put in bar, OR skip 1st letter if bar is empty.
     local startAt = math.max(2, inputLength + 1)
 
     for i = startAt, #word do
+        -- Typo Logic
         if #word > 7 and i == (startAt + 3) and math.random() < activeTypoChance then
-            task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
-            press(Enum.KeyCode.Q); task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed)) 
-            press(Enum.KeyCode.Backspace); task.wait(GetRandomTime(TYPING_SETTINGS.BackspaceSpeed))
+            task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed, WordFlowFactor)) 
+            press(Enum.KeyCode.Q)
+            task.wait(GetRandomTime(TYPING_SETTINGS.BaseSpeed, WordFlowFactor)) 
+            press(Enum.KeyCode.Backspace)
+            task.wait(GetRandomTime(TYPING_SETTINGS.BackspaceSpeed, WordFlowFactor))
         end
+
         local char = word:sub(i, i):upper()
         local code = Enum.KeyCode[char] or (char == " " and Enum.KeyCode.Space)
         if char == "-" then code = Enum.KeyCode.Minus end
         if code then press(code) end
-        local delay = (i <= (startAt + 3)) and GetRandomTime(TYPING_SETTINGS.StartSlowDelay) or GetRandomTime(TYPING_SETTINGS.BaseSpeed)
-        if math.random() < activeHesitationChance then delay = delay + GetRandomTime(TYPING_SETTINGS.HesitationDelay) end
+
+        -- Delay Logic with Flow Factor
+        local delay = (i <= (startAt + 3)) and GetRandomTime(TYPING_SETTINGS.StartSlowDelay, WordFlowFactor) or GetRandomTime(TYPING_SETTINGS.BaseSpeed, WordFlowFactor)
+        
+        if math.random() < activeHesitationChance then 
+            delay = delay + GetRandomTime(TYPING_SETTINGS.HesitationDelay, WordFlowFactor) 
+        end
+        
         task.wait(delay)
     end
 
-    task.wait(math.max(0.1, GetRandomTime(TYPING_SETTINGS.SubmitDelay)))
+    task.wait(math.max(0.1, GetRandomTime(TYPING_SETTINGS.SubmitDelay, WordFlowFactor)))
     vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game); task.wait(0.1); vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     isTyping = false
     WordText.Text = "Waiting..."; WordText.TextColor3 = Color3.fromRGB(150, 150, 150)
