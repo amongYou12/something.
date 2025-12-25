@@ -1,16 +1,15 @@
 --[[
-    UNPATCHABOMB [v25 - DEAD END EDITION]
-    - NEW: "Dead End" Logic. Prioritizes endings with 0 replies.
-    - NEW: Candidate Shuffling. Finds "Killer Words" much faster.
-    - INFO: Displays how many replies the opponent has (e.g. [Trap: 0]).
+    UNPATCHABOMB [v26 - SMART TARGET EDITION]
+    - NEW: "Smart Target" Logic. Locks onto a difficult ending and reuses it until impossible.
+    - BEHAVIOR: Finds a trap -> Spams that trap ending -> Switches only when necessary.
+    - INFO: Displays [Lock: "XYZ"] to show the active pattern.
 ]]--
 
-local SCRIPT_VERSION = "v25_DeadEnd"
+local SCRIPT_VERSION = "v26_SmartTarget"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
--- 1. WAIT FOR GAME
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 --------------------------------------------------------------------------------
@@ -41,8 +40,8 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt",
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt",
-    "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt",
-    "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
+    "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt"
+
 }
 
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForLastLetter.txt"
@@ -71,6 +70,9 @@ local ALL_WORDS, SAVED_LIST_UI = {}, {}
 local SESSION_BLACKLIST = {} 
 local isTyping, lastFound, isLockIn = false, "", false
 local FinisherMode = 0 
+
+-- NEW: TARGET LOCK VARIABLE
+local CurrentTargetSuffix = nil 
 
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
@@ -115,7 +117,7 @@ local function GetStartingCount(suffix)
     for _, w in ipairs(ALL_WORDS) do
         if w:sub(1, sufLen):lower() == suffix then
             count = count + 1
-            if count > 20 then return 20 end -- Cap at 20 for speed (anything > 0 is bad)
+            if count > 20 then return 20 end 
         end
     end
     return count
@@ -131,7 +133,7 @@ local Main = Instance.new("Frame"); Main.Parent = Screen; Main.BackgroundColor3 
 local Corner = Instance.new("UICorner"); Corner.Parent = Main
 local Top = Instance.new("Frame"); Top.Parent = Main; Top.BackgroundColor3 = Color3.fromRGB(30,30,30); Top.Size = UDim2.new(1,0,0,35)
 local TopCorner = Instance.new("UICorner"); TopCorner.Parent = Top
-local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v25 [DEAD END]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
+local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v26 [TARGET]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
 
 -- TRAP TAB
 local FinFrame = Instance.new("Frame"); FinFrame.Name = "FinisherFrame"; FinFrame.Parent = Screen; FinFrame.BackgroundColor3 = Color3.fromRGB(25,25,25); FinFrame.Size = UDim2.new(0, 200, 0, 180); FinFrame.Position = UDim2.new(0.5, 210, 0.5, -170); FinFrame.Visible = false
@@ -174,6 +176,7 @@ local Fin3 = Btn(FinFrame, "3 Letters (Trap)", UDim2.new(0.1,0,0.45,0), UDim2.ne
 local Fin4 = Btn(FinFrame, "4 Letters (Trap)", UDim2.new(0.1,0,0.65,0), UDim2.new(0.8,0,0.15,0), Color3.fromRGB(50,50,50))
 local FinStatus = Instance.new("TextLabel"); FinStatus.Parent = FinFrame; FinStatus.Position = UDim2.new(0,0,0.85,0); FinStatus.Size = UDim2.new(1,0,0.1,0); FinStatus.BackgroundTransparency = 1; FinStatus.TextColor3 = Color3.fromRGB(200,200,200); FinStatus.Text = "Mode: OFF"; FinStatus.Font = Enum.Font.GothamBold; FinStatus.TextSize=10
 
+-- DRAGGING
 local function MakeDraggable(frame, trigger)
     local drag, start, startPos
     trigger.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true; start=i.Position; startPos=frame.Position end end)
@@ -216,7 +219,7 @@ local function TypeWord(word, skipCount)
 end
 
 --------------------------------------------------------------------------------
--- 6. SEARCH ENGINE (DEAD END LOGIC)
+-- 6. SEARCH ENGINE (SMART TARGETING)
 --------------------------------------------------------------------------------
 local function DoSearch()
     if isTyping then return end
@@ -230,20 +233,16 @@ local function DoSearch()
 
     task.spawn(function()
         local found = nil
-        local finalTrapScore = -1
         
-        -- TRAP MODE (DEAD END LOGIC)
+        -- TRAP MODE
         if FinisherMode > 0 then
             local candidates = {}
             local yC = 0
             
-            -- 1. Gather all candidates
+            -- 1. Gather Candidates
             for _, v in ipairs(ALL_WORDS) do
                 yC=yC+1; if yC%8000==0 then task.wait() end
-                
-                -- Cap candidates at 100 for performance, but SHUFFLE later to ensure variety
-                if #candidates > 100 then break end
-                
+                if #candidates > 150 then break end
                 local w = Sanitize(v); local wLow = w:lower()
                 if #w >= MIN_LETTER_COUNT and not CheckHist(w) and not IsBlacklisted(w) then
                     local match = false
@@ -253,25 +252,41 @@ local function DoSearch()
                 end
             end
             
-            -- 2. SHUFFLE Candidates to avoid "ING" clumps
             ShuffleTable(candidates)
             
-            -- 3. Find the DEAD END
-            local bestTrapScore = 9999
-            WordStatus.Text = "Calculating Trap..."
-            
-            for _, w in ipairs(candidates) do
-                if #w > FinisherMode then
-                    local suffix = w:sub(-FinisherMode):lower()
-                    local score = GetStartingCount(suffix)
-                    
-                    if score < bestTrapScore then
-                        bestTrapScore = score
+            -- 2. SMART TARGET LOGIC
+            -- Try to reuse the current target if possible
+            if CurrentTargetSuffix and #CurrentTargetSuffix == FinisherMode then
+                for _, w in ipairs(candidates) do
+                    if w:lower():sub(-FinisherMode) == CurrentTargetSuffix then
                         found = w
-                        finalTrapScore = score
+                        break -- Maintain Lock!
                     end
                 end
-                if bestTrapScore == 0 then break end -- Instant Kill found
+            end
+            
+            -- 3. CALCULATE NEW TARGET (If no lock or lock failed)
+            if not found then
+                local bestTrapScore = 9999
+                local newTarget = nil
+                WordStatus.Text = "Calculating New Lock..."
+                
+                for _, w in ipairs(candidates) do
+                    if #w > FinisherMode then
+                        local suffix = w:sub(-FinisherMode):lower()
+                        local score = GetStartingCount(suffix)
+                        
+                        if score < bestTrapScore then
+                            bestTrapScore = score
+                            found = w
+                            newTarget = suffix
+                        end
+                    end
+                    if bestTrapScore == 0 then break end
+                end
+                
+                -- Set the new lock
+                CurrentTargetSuffix = newTarget
             end
             
             -- Fallback
@@ -302,10 +317,12 @@ local function DoSearch()
             lastFound = found
             -- VISUAL FEEDBACK
             local extraInfo = ""
-            if FinisherMode > 0 then extraInfo = " [Trap: " .. finalTrapScore .. " replies]" end
+            if FinisherMode > 0 and CurrentTargetSuffix then 
+                extraInfo = " [Lock: \"" .. CurrentTargetSuffix:upper() .. "\"]" 
+            end
             
             WordStatus.Text = "Typing: " .. found .. extraInfo
-            WordStatus.TextColor3 = (finalTrapScore == 0) and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 200, 255)
+            WordStatus.TextColor3 = (FinisherMode > 0) and Color3.fromRGB(255, 100, 255) or Color3.fromRGB(0, 200, 255)
             
             AddHist(found)
             task.wait(0.1) 
@@ -319,7 +336,7 @@ local function DoSearch()
 end
 
 --------------------------------------------------------------------------------
--- 7. BUTTONS & INIT
+-- 8. CONNECTIONS
 --------------------------------------------------------------------------------
 FirstB.MouseButton1Click:Connect(function() local on=FirstB.Text:find("OFF"); FirstB.Text=on and "First: ON" or "First: OFF"; FirstB.BackgroundColor3=on and Color3.fromRGB(230,126,34) or Color3.fromRGB(50,50,50) end)
 ShortB.MouseButton1Click:Connect(function() local on=ShortB.Text:find("OFF"); ShortB.Text=on and "Short: ON" or "Short: OFF"; ShortB.BackgroundColor3=on and Color3.fromRGB(241,196,15) or Color3.fromRGB(50,50,50); if on then FlexB.Text="Flex: OFF"; FlexB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
@@ -327,7 +344,14 @@ FlexB.MouseButton1Click:Connect(function() local on=FlexB.Text:find("OFF"); Flex
 LockB.MouseButton1Click:Connect(function() isLockIn=not isLockIn; LockB.Text=isLockIn and "Lock: ON" or "Lock: OFF"; LockB.BackgroundColor3=isLockIn and Color3.fromRGB(52,152,219) or Color3.fromRGB(50,50,50) end)
 
 FinMenuB.MouseButton1Click:Connect(function() FinFrame.Visible = not FinFrame.Visible end)
-local function SetFin(mode) FinisherMode = mode; Fin2.BackgroundColor3 = (mode==2) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50); Fin3.BackgroundColor3 = (mode==3) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50); Fin4.BackgroundColor3 = (mode==4) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50); FinStatus.Text = (mode==0) and "Mode: OFF" or ("Mode: Trap " .. mode .. " Letters") end
+local function SetFin(mode) 
+    FinisherMode = mode
+    CurrentTargetSuffix = nil -- Reset target on mode change
+    Fin2.BackgroundColor3 = (mode==2) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50)
+    Fin3.BackgroundColor3 = (mode==3) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50)
+    Fin4.BackgroundColor3 = (mode==4) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50)
+    FinStatus.Text = (mode==0) and "Mode: OFF" or ("Mode: Trap " .. mode .. " Letters") 
+end
 Fin2.MouseButton1Click:Connect(function() SetFin(FinisherMode==2 and 0 or 2) end)
 Fin3.MouseButton1Click:Connect(function() SetFin(FinisherMode==3 and 0 or 3) end)
 Fin4.MouseButton1Click:Connect(function() SetFin(FinisherMode==4 and 0 or 4) end)
