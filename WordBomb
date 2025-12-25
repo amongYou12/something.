@@ -50,7 +50,7 @@ local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something
 local TYPING_SETTINGS = {
     BaseSpeed = {0.065, 0.090},      
     StartSlowDelay = {0.15, 0.25},   -- Humans take a split second to read the prompt
-    HesitationChance = 0.15,         -- Lower chance, but smarter placement
+    HesitationChance = 0.35,         -- Lower chance, but smarter placement
     HesitationDelay = {0.1, 0.2},  
     SubmitDelay = {0.08, 0.15}       -- Don't submit instantly (looks suspect)
 }
@@ -60,7 +60,7 @@ local FLEX_MODIFIERS = {
     BurstChance = 0.20,        -- High chance to burst on common clusters
     BurstReduction = 0.035,    -- Significant speed up during burst
     TypoChance = 0.06,         -- Rare but realistic typos
-    HesitationAdd = 0.025
+    HesitationAdd = 0.25
 }
 local LOCK_IN_SPEED_BOOST = 0.045 
 
