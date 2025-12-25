@@ -35,11 +35,11 @@ local TYPING_SETTINGS = {
 }
 
 local FLEX_MODIFIERS = {
-    SpeedAdder = 0.0025,
+    SpeedAdder = 0.0115,
     BurstChance = 0.40,
     BurstReduction = 0.050,
-    TypoChance = 0.02,
-    HesitationAdd = 0.02
+    TypoChance = 0.05,
+    HesitationAdd = 0.065
 }
 
 local LOCK_IN_SPEED_BOOST = 0.040 
