@@ -1,18 +1,23 @@
 --[[
-    UNPATCHABOMB [v14.5 - TEXT BLACKLIST FIX]
-    - FIXED: Now reads raw .txt files correctly (Fixes your blacklist issue).
-    - INCLUDED: Smart Input, Human Flex, Session Blacklist.
+    UNPATCHABOMB [v16 - RAW FORMAT FIX]
+    - FIXED: Blacklist reader now handles "Word1, Word2, Word3" format.
+    - FEATURES: Smart Input, Human Flex, Session Blacklist.
 ]]--
 
+print("[UPB] Script Initializing...")
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
 --------------------------------------------------------------------------------
--- 0. CONFIGURATION & SETTINGS
+-- 0. CONFIGURATION
 --------------------------------------------------------------------------------
 local MIN_LETTER_COUNT = 4
 
--- YOUR UPDATED BLACKLIST URLS
+-- YOUR BLACKLIST URLS
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForLastLetter.txt"
 local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForWordbomb.txt"
 
+-- DICTIONARY URLS
 local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
     "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt",
@@ -20,6 +25,7 @@ local DictionaryURLs = {
     "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt"
 }
 
+-- TYPING BEHAVIOR
 local TYPING_SETTINGS = {
     BaseSpeed = {0.070, 0.085},      
     StartSlowDelay = {0.08, 0.12},   
@@ -29,17 +35,17 @@ local TYPING_SETTINGS = {
 }
 
 local FLEX_MODIFIERS = {
-    SpeedAdder = 0.05,
+    SpeedAdder = 0.0125,
     BurstChance = 0.40,
     BurstReduction = 0.050,
-    TypoChance = 0.04,
-    HesitationAdd = 0.04
+    TypoChance = 0.10,
+    HesitationAdd = 0.15
 }
 
 local LOCK_IN_SPEED_BOOST = 0.040 
 
 --------------------------------------------------------------------------------
--- 1. VARIABLES & SERVICES
+-- 1. SERVICES & VARIABLES
 --------------------------------------------------------------------------------
 local vim = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
@@ -55,31 +61,40 @@ local isTyping, lastFound, isLockIn = false, "", false
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
 
--- UTILITY FUNCTIONS
+-- HELPERS
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
 local function Sanitize(s) return s:gsub("%s+", ""):gsub("[^a-zA-Z0-9%-]", "") end
 
--- [[ FIXED BLACKLIST FETCHER ]] --
+local function GetRandomTime(tbl)
+    return (math.random(tbl[1]*1000, tbl[2]*1000) / 1000)
+end
+
+-- [[ NEW BLACKLIST FETCHER (COMMA SEPARATED) ]] --
 local function FetchBlacklist(url, target)
-    print("Attempting to download blacklist...")
+    print("[UPB] Downloading Blacklist from: " .. url)
     local s, content = pcall(function() return game:HttpGet(url) end)
     
     if s then
         local addedCount = 0
-        -- Read the file line by line (Works for .txt files)
-        for line in content:gmatch("[^\r\n]+") do
-            -- Clean up spaces around the word
-            local cleanWord = line:match("^%s*(.-)%s*$")
+        -- Replace newlines with commas to treat them as separators if mixed
+        content = content:gsub("\n", ",")
+        
+        -- Split by comma
+        for chunk in content:gmatch("([^,]+)") do
+            -- Trim spaces and sanitize
+            local cleanWord = chunk:match("^%s*(.-)%s*$")
             if cleanWord and cleanWord ~= "" then
+                -- Remove any trailing periods or weird chars if present
+                cleanWord = Sanitize(cleanWord)
                 target[cleanWord:lower()] = true
                 addedCount = addedCount + 1
             end
         end
-        print("Success! Added " .. addedCount .. " words to blacklist.")
+        print("[UPB] Success! Added " .. addedCount .. " words.")
         return true
     else
-        warn("Failed to download blacklist URL!")
+        warn("[UPB] Failed to download URL!")
     end
     return false
 end
@@ -92,12 +107,8 @@ local function IsBlacklisted(w)
     return false
 end
 
-local function GetRandomTime(tbl)
-    return (math.random(tbl[1]*1000, tbl[2]*1000) / 1000)
-end
-
 --------------------------------------------------------------------------------
--- 2. UI CONSTRUCTION
+-- 2. UI PARENTING
 --------------------------------------------------------------------------------
 local ParentTarget = (gethui and gethui()) or CoreGui:FindFirstChild("RobloxGui") or CoreGui
 if not pcall(function() return ParentTarget.Name end) then ParentTarget = Players.LocalPlayer.PlayerGui end
@@ -109,7 +120,7 @@ local Corner = Instance.new("UICorner"); Corner.Parent = Main
 
 local Top = Instance.new("Frame"); Top.Parent = Main; Top.BackgroundColor3 = Color3.fromRGB(30,30,30); Top.Size = UDim2.new(1,0,0,35)
 local TopCorner = Instance.new("UICorner"); TopCorner.Parent = Top
-local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v14.5 [TXT FIX]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
+local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v16 [RAW FIX]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
 
 local WordStatus = Instance.new("TextLabel"); WordStatus.Parent = Main; WordStatus.Position = UDim2.new(0,0,0.11,0); WordStatus.Size = UDim2.new(1,0,0.08,0); WordStatus.BackgroundTransparency = 1; WordStatus.Text = "Dictionary Loading..."; WordStatus.TextColor3 = Color3.fromRGB(200,200,200); WordStatus.Font = Enum.Font.GothamMedium; WordStatus.TextSize = 13
 
@@ -143,14 +154,14 @@ Instance.new("UIListLayout").Parent = ListScroll
 local CopyBtn = Btn("Copy All to Clipboard", UDim2.new(0.1,0,0.85,0), UDim2.new(0.8,0,0.1,0), Color3.fromRGB(60,60,60))
 CopyBtn.Parent = ListView
 
--- DRAGGING LOGIC
+-- DRAGGING
 local dragging, dragInput, dragStart, startPos
 Top.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = Main.Position; input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end) end end)
 Top.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
 UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then local delta = input.Position - dragStart; Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
 
 --------------------------------------------------------------------------------
--- 3. LOGIC & TYPING
+-- 3. HUMANIZED TYPING
 --------------------------------------------------------------------------------
 local function TypeWord(word, skipCount)
     isTyping = true
@@ -168,16 +179,14 @@ local function TypeWord(word, skipCount)
         
         if isFlex and math.random() < FLEX_MODIFIERS.TypoChance and i < #word and i > 2 then
             local wrongKey = Enum.KeyCode[string.char(math.random(65, 90))] 
-            vim:SendKeyEvent(true, wrongKey, false, game); task.wait(0.01)
-            vim:SendKeyEvent(false, wrongKey, false, game); task.wait(math.random(15, 30)/100)
-            vim:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game); task.wait(0.01)
-            vim:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game); task.wait(math.random(10, 20)/100)
+            pcall(function() vim:SendKeyEvent(true, wrongKey, false, game); task.wait(0.01); vim:SendKeyEvent(false, wrongKey, false, game) end)
+            task.wait(math.random(15, 30)/100)
+            pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game); task.wait(0.01); vim:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game) end)
+            task.wait(math.random(10, 20)/100)
         end
 
         if code then
-            vim:SendKeyEvent(true, code, false, game)
-            task.wait(0.01)
-            vim:SendKeyEvent(false, code, false, game)
+            pcall(function() vim:SendKeyEvent(true, code, false, game); task.wait(0.01); vim:SendKeyEvent(false, code, false, game) end)
         end
         
         local currentDelay = GetRandomTime(TYPING_SETTINGS.BaseSpeed)
@@ -194,12 +203,13 @@ local function TypeWord(word, skipCount)
     end
     
     task.wait(GetRandomTime(TYPING_SETTINGS.SubmitDelay))
-    vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-    task.wait(0.05)
-    vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+    pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game); task.wait(0.05); vim:SendKeyEvent(false, Enum.KeyCode.Return, false, game) end)
     isTyping = false
 end
 
+--------------------------------------------------------------------------------
+-- 4. SEARCH ENGINE
+--------------------------------------------------------------------------------
 local function DoSearch()
     if isTyping then return end
     local query = Sanitize(Input.Text):lower()
@@ -230,7 +240,6 @@ local function DoSearch()
                     if wLow:find(query, 1, true) then match = true end 
                 end
                 
-                -- IsBlacklisted CHECK HERE
                 if match and not CheckHist(w) and not IsBlacklisted(w) then
                     if isShortMode then if #w < bestLen then bestLen = #w; found = w end
                     elseif isFlexMode then if #w > bestLen then bestLen = #w; found = w end
@@ -241,14 +250,13 @@ local function DoSearch()
         
         if found then
             lastFound = found
-            WordStatus.Text = "Found: " .. found
+            WordStatus.Text = "Typing: " .. found
             WordStatus.TextColor3 = Color3.fromRGB(0, 200, 255)
             AddHist(found)
             task.wait(0.1) 
             
             local skip = 0
             if isFirstMode then skip = #query end
-            
             TypeWord(found, skip)
         else
             WordStatus.Text = "No word found!"
@@ -258,17 +266,8 @@ local function DoSearch()
 end
 
 --------------------------------------------------------------------------------
--- 4. BUTTON CONNECTIONS & LOADER
+-- 5. BUTTONS & INIT
 --------------------------------------------------------------------------------
-task.spawn(function()
-    local count = 0
-    for _, url in ipairs(DictionaryURLs) do
-        local s, content = pcall(function() return game:HttpGet(url) end)
-        if s then for line in content:gmatch("[^\r\n]+") do table.insert(ALL_WORDS, line) count=count+1 end end
-    end
-    WordStatus.Text = "Loaded " .. count .. " Words"
-end)
-
 FirstB.MouseButton1Click:Connect(function() local on=FirstB.Text:find("OFF"); FirstB.Text=on and "First: ON" or "First: OFF"; FirstB.BackgroundColor3=on and Color3.fromRGB(230,126,34) or Color3.fromRGB(50,50,50) end)
 ShortB.MouseButton1Click:Connect(function() local on=ShortB.Text:find("OFF"); ShortB.Text=on and "Short: ON" or "Short: OFF"; ShortB.BackgroundColor3=on and Color3.fromRGB(241,196,15) or Color3.fromRGB(50,50,50); if on then FlexB.Text="Flex: OFF"; FlexB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
 FlexB.MouseButton1Click:Connect(function() local on=FlexB.Text:find("OFF"); FlexB.Text=on and "Flex: ON" or "Flex: OFF"; FlexB.BackgroundColor3=on and Color3.fromRGB(46,204,113) or Color3.fromRGB(50,50,50); if on then ShortB.Text="Short: OFF"; ShortB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
@@ -310,4 +309,13 @@ ResetB.MouseButton1Click:Connect(function() GlobalEnv._UPB_History = {}; WordSta
 RunBtn.MouseButton1Click:Connect(DoSearch)
 Input.FocusLost:Connect(function(e) if e then DoSearch() end end)
 
-print("UNPATCHABOMB v14.5 LOADED")
+task.spawn(function()
+    local count = 0
+    for _, url in ipairs(DictionaryURLs) do
+        local s, content = pcall(function() return game:HttpGet(url) end)
+        if s then for line in content:gmatch("[^\r\n]+") do table.insert(ALL_WORDS, line) count=count+1 end end
+    end
+    WordStatus.Text = "Loaded " .. count .. " Words"
+end)
+
+print("UNPATCHABOMB v16 LOADED")
