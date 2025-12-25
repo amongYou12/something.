@@ -1,51 +1,44 @@
---[[
-    UNPATCHABOMB [v22 - BULLETPROOF EDITION]
-    - FIXED: "Attempt to call nil value" crash (Safe Service Checks).
-    - INCLUDED: Finisher Trap Mode (Draggable Tab).
-    - INCLUDED: Smart Input & Human Flex Typing.
-]]--
+local SCRIPT_VERSION = "v23_Compatibility"
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- 1. PRE-LOAD CHECKS
+-- 1. WAIT FOR GAME
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- 2. SAFE SERVICE GETTERS
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
-local vim = game:GetService("VirtualInputManager")
+-- 2. SAFE SERVICE CHECK (VirtualInputManager)
+local vim = nil
+local success, result = pcall(function() return game:GetService("VirtualInputManager") end)
+if success and result then
+    vim = result
+else
+    warn("[UPB] Warning: Your executor does not support VirtualInputManager. Auto-type may fail.")
+end
 
--- Safe GUI Parent Getter
-local function GetSafeParent()
-    -- Check for gethui (Exploit standard)
-    if getgenv and getgenv().gethui and type(getgenv().gethui) == "function" then
-        return getgenv().gethui()
+-- 3. PARENTING FIX (PlayerGui Default)
+local function GetUI_Parent()
+    local lp = Players.LocalPlayer
+    if lp and lp:FindFirstChild("PlayerGui") then
+        return lp.PlayerGui
     end
-    -- Check for CoreGui
-    if pcall(function() return CoreGui.Name end) then
-        return CoreGui
-    end
-    -- Fallback to PlayerGui
-    if Players.LocalPlayer then
-        return Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
+    -- Fallback to CoreGui only if PlayerGui is missing (Rare)
+    if game:GetService("CoreGui") then return game:GetService("CoreGui") end
     return nil
 end
 
-local ParentTarget = GetSafeParent()
+local ParentTarget = GetUI_Parent()
 if not ParentTarget then 
-    warn("CRITICAL ERROR: Could not find a place to put the GUI.")
+    warn("[UPB] Critical: Cannot find GUI Parent.") 
     return 
 end
 
+-- CLEANUP OLD UI
 if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
 --------------------------------------------------------------------------------
--- 3. CONFIGURATION
+-- 4. CONFIGURATION & URLS
 --------------------------------------------------------------------------------
 local MIN_LETTER_COUNT = 4
-
-local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForLastLetter.txt"
-local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForWordbomb.txt"
 
 local DictionaryURLs = {
     "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt",
@@ -53,6 +46,9 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt",
     "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt"
 }
+
+local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForLastLetter.txt"
+local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForWordbomb.txt"
 
 local TYPING_SETTINGS = {
     BaseSpeed = {0.075, 0.085},      
@@ -70,9 +66,7 @@ local FLEX_MODIFIERS = {
 }
 local LOCK_IN_SPEED_BOOST = 0.040 
 
---------------------------------------------------------------------------------
--- 4. VARIABLES
---------------------------------------------------------------------------------
+-- VARIABLES
 local LL_Enabled, WB_Enabled = false, false
 local LL_Table, WB_Table = {}, {}
 local ALL_WORDS, SAVED_LIST_UI = {}, {}
@@ -80,10 +74,11 @@ local SESSION_BLACKLIST = {}
 local isTyping, lastFound, isLockIn = false, "", false
 local FinisherMode = 0 
 
+-- INTERNAL STORAGE
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
 
--- HELPERS
+-- UTILS
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
 local function Sanitize(s) return s:gsub("%s+", ""):gsub("[^a-zA-Z0-9%-]", "") end
@@ -123,25 +118,25 @@ local function GetStartingCount(suffix)
 end
 
 --------------------------------------------------------------------------------
--- 5. UI CONSTRUCTION
+-- 5. UI CREATION
 --------------------------------------------------------------------------------
 local Screen = Instance.new("ScreenGui"); Screen.Name = "Unpatchabomb"; Screen.Parent = ParentTarget; Screen.ResetOnSpawn = false
 
--- === MAIN FRAME ===
+-- MAIN FRAME
 local Main = Instance.new("Frame"); Main.Parent = Screen; Main.BackgroundColor3 = Color3.fromRGB(20,20,20); Main.Size = UDim2.new(0, 400, 0, 340); Main.Position = UDim2.new(0.5, -200, 0.5, -170); Main.BorderSizePixel = 0
 local Corner = Instance.new("UICorner"); Corner.Parent = Main
 local Top = Instance.new("Frame"); Top.Parent = Main; Top.BackgroundColor3 = Color3.fromRGB(30,30,30); Top.Size = UDim2.new(1,0,0,35)
 local TopCorner = Instance.new("UICorner"); TopCorner.Parent = Top
-local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v22 [TRAP]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
+local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v23 [COMPATIBILITY]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
 
--- === FINISHER TAB (The separate draggable one) ===
+-- TRAP FRAME
 local FinFrame = Instance.new("Frame"); FinFrame.Name = "FinisherFrame"; FinFrame.Parent = Screen; FinFrame.BackgroundColor3 = Color3.fromRGB(25,25,25); FinFrame.Size = UDim2.new(0, 200, 0, 180); FinFrame.Position = UDim2.new(0.5, 210, 0.5, -170); FinFrame.Visible = false
 Instance.new("UICorner", FinFrame)
 local FinTop = Instance.new("Frame"); FinTop.Parent = FinFrame; FinTop.BackgroundColor3 = Color3.fromRGB(35,35,35); FinTop.Size = UDim2.new(1,0,0,30)
 Instance.new("UICorner", FinTop)
 local FinTitle = Instance.new("TextLabel"); FinTitle.Parent = FinTop; FinTitle.Size = UDim2.new(1,0,1,0); FinTitle.BackgroundTransparency = 1; FinTitle.Text = "Trap Settings"; FinTitle.TextColor3 = Color3.new(1,1,1); FinTitle.Font = Enum.Font.GothamBold; FinTitle.TextSize = 12
 
--- === SAVED LIST ===
+-- SAVED LIST
 local ListView = Instance.new("Frame"); ListView.Parent = Screen; ListView.Size = UDim2.new(0,200,0,280); ListView.Position = UDim2.new(0.5, 210, 0.5, 20); ListView.BackgroundColor3 = Color3.fromRGB(25,25,25); ListView.Visible = false
 Instance.new("UICorner", ListView)
 local ListScroll = Instance.new("ScrollingFrame"); ListScroll.Parent = ListView; ListScroll.Size = UDim2.new(0.9,0,0.7,0); ListScroll.Position = UDim2.new(0.05,0,0.1,0); ListScroll.BackgroundTransparency = 1; ListScroll.CanvasSize = UDim2.new(0,0,0,0)
@@ -187,9 +182,10 @@ MakeDraggable(Main, Top)
 MakeDraggable(FinFrame, FinTop)
 
 --------------------------------------------------------------------------------
--- 6. TYPING ENGINE
+-- 6. TYPING LOGIC
 --------------------------------------------------------------------------------
 local function TypeWord(word, skipCount)
+    if not vim then return end -- Safety check
     isTyping = true
     local isFlex = FlexB.Text:find("ON")
     local startDelay = GetRandomTime(TYPING_SETTINGS.StartSlowDelay)
@@ -235,7 +231,9 @@ local function DoSearch()
         -- TRAP MODE
         if FinisherMode > 0 then
             local candidates = {}
+            local yC = 0
             for _, v in ipairs(ALL_WORDS) do
+                yC=yC+1; if yC%5000==0 then task.wait() end
                 if #candidates > 50 then break end
                 local w = Sanitize(v); local wLow = w:lower()
                 if #w >= MIN_LETTER_COUNT and not CheckHist(w) and not IsBlacklisted(w) then
@@ -245,7 +243,6 @@ local function DoSearch()
                     if match then table.insert(candidates, w) end
                 end
             end
-            
             local bestTrapScore = 9999
             for _, w in ipairs(candidates) do
                 if #w > FinisherMode then
@@ -257,33 +254,22 @@ local function DoSearch()
             end
             if not found and #candidates > 0 then found = candidates[1] end
 
-        -- ROBUST FLEX/SHORT/NORMAL
+        -- FLEX / SHORT / NORMAL
         else
             local yieldCounter = 0
             local bestLen = isShortMode and 999 or 0
-            
             for _, v in ipairs(ALL_WORDS) do
                 yieldCounter = yieldCounter + 1; 
-                if yieldCounter % 10000 == 0 then task.wait() end -- Safe Yield
-                
+                if yieldCounter % 15000 == 0 then task.wait() end 
                 local w = Sanitize(v); local wLow = w:lower()
-                
                 if #w >= MIN_LETTER_COUNT and not CheckHist(w) and not IsBlacklisted(w) then
                     local match = false
-                    if isFirstMode then 
-                        if wLow:sub(1, #query) == query then match = true end
-                    else 
-                        if wLow:find(query, 1, true) then match = true end 
-                    end
-                    
+                    if isFirstMode then if wLow:sub(1, #query) == query then match = true end
+                    else if wLow:find(query, 1, true) then match = true end end
                     if match then
-                        if isShortMode then
-                            if #w < bestLen then bestLen = #w; found = w end
-                        elseif isFlexMode then
-                            if #w > bestLen then bestLen = #w; found = w end
-                        else
-                            found = w; break -- Normal break
-                        end
+                        if isShortMode then if #w < bestLen then bestLen = #w; found = w end
+                        elseif isFlexMode then if #w > bestLen then bestLen = #w; found = w end
+                        else found = w; break end
                     end
                 end
             end
@@ -305,7 +291,7 @@ local function DoSearch()
 end
 
 --------------------------------------------------------------------------------
--- 8. CONNECT BUTTONS
+-- 8. CONNECTIONS
 --------------------------------------------------------------------------------
 FirstB.MouseButton1Click:Connect(function() local on=FirstB.Text:find("OFF"); FirstB.Text=on and "First: ON" or "First: OFF"; FirstB.BackgroundColor3=on and Color3.fromRGB(230,126,34) or Color3.fromRGB(50,50,50) end)
 ShortB.MouseButton1Click:Connect(function() local on=ShortB.Text:find("OFF"); ShortB.Text=on and "Short: ON" or "Short: OFF"; ShortB.BackgroundColor3=on and Color3.fromRGB(241,196,15) or Color3.fromRGB(50,50,50); if on then FlexB.Text="Flex: OFF"; FlexB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
@@ -335,7 +321,4 @@ task.spawn(function()
         if s then for line in content:gmatch("[^\r\n]+") do table.insert(ALL_WORDS, line) count=count+1 end end
     end
     WordStatus.Text = "Loaded " .. count .. " Words"
-    print("[UPB] Words: " .. count)
 end)
-
-print("[UPB] Loaded.")
