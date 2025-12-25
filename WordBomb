@@ -1,11 +1,11 @@
 --[[
-    UNPATCHABOMB [v26 - SMART TARGET EDITION]
-    - NEW: "Smart Target" Logic. Locks onto a difficult ending and reuses it until impossible.
-    - BEHAVIOR: Finds a trap -> Spams that trap ending -> Switches only when necessary.
-    - INFO: Displays [Lock: "XYZ"] to show the active pattern.
+    UNPATCHABOMB [v27 - PRO NATURAL EDITION]
+    - NEW: "Combo Lock" Logic. Forces a specific ending (e.g., "OUS") until impossible.
+    - NEW: "Pro Natural" Typing. Simulates human burst speeds on common syllables.
+    - BEHAVIOR: Smart shifting to similar endings when the current lock fails.
 ]]--
 
-local SCRIPT_VERSION = "v26_SmartTarget"
+local SCRIPT_VERSION = "v27_ProNatural"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
@@ -41,27 +41,28 @@ local DictionaryURLs = {
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
     "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt",
     "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt"
-
 }
 
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForLastLetter.txt"
 local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForWordbomb.txt"
 
+-- "PRO NATURAL" TYPING PROFILES
 local TYPING_SETTINGS = {
-    BaseSpeed = {0.075, 0.085},      
-    StartSlowDelay = {0.08, 0.12},   
-    HesitationChance = 0.40,         
+    BaseSpeed = {0.065, 0.090},      
+    StartSlowDelay = {0.15, 0.25},   -- Humans take a split second to read the prompt
+    HesitationChance = 0.15,         -- Lower chance, but smarter placement
     HesitationDelay = {0.1, 0.2},  
-    SubmitDelay = {0.05, 0.1}        
+    SubmitDelay = {0.08, 0.15}       -- Don't submit instantly (looks suspect)
 }
+
 local FLEX_MODIFIERS = {
     SpeedAdder = 0.015,
-    BurstChance = 0.15,
-    BurstReduction = 0.030,
-    TypoChance = 0.08,
+    BurstChance = 0.40,        -- High chance to burst on common clusters
+    BurstReduction = 0.045,    -- Significant speed up during burst
+    TypoChance = 0.06,         -- Rare but realistic typos
     HesitationAdd = 0.015
 }
-local LOCK_IN_SPEED_BOOST = 0.040 
+local LOCK_IN_SPEED_BOOST = 0.045 
 
 -- DATA
 local LL_Enabled, WB_Enabled = false, false
@@ -71,8 +72,9 @@ local SESSION_BLACKLIST = {}
 local isTyping, lastFound, isLockIn = false, "", false
 local FinisherMode = 0 
 
--- NEW: TARGET LOCK VARIABLE
+-- SMART TARGET VARS
 local CurrentTargetSuffix = nil 
+local TargetStreak = 0
 
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
@@ -117,7 +119,7 @@ local function GetStartingCount(suffix)
     for _, w in ipairs(ALL_WORDS) do
         if w:sub(1, sufLen):lower() == suffix then
             count = count + 1
-            if count > 20 then return 20 end 
+            if count > 25 then return 25 end 
         end
     end
     return count
@@ -133,7 +135,7 @@ local Main = Instance.new("Frame"); Main.Parent = Screen; Main.BackgroundColor3 
 local Corner = Instance.new("UICorner"); Corner.Parent = Main
 local Top = Instance.new("Frame"); Top.Parent = Main; Top.BackgroundColor3 = Color3.fromRGB(30,30,30); Top.Size = UDim2.new(1,0,0,35)
 local TopCorner = Instance.new("UICorner"); TopCorner.Parent = Top
-local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v26 [TARGET]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
+local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v27 [PRO NATURAL]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
 
 -- TRAP TAB
 local FinFrame = Instance.new("Frame"); FinFrame.Name = "FinisherFrame"; FinFrame.Parent = Screen; FinFrame.BackgroundColor3 = Color3.fromRGB(25,25,25); FinFrame.Size = UDim2.new(0, 200, 0, 180); FinFrame.Position = UDim2.new(0.5, 210, 0.5, -170); FinFrame.Visible = false
@@ -188,31 +190,71 @@ MakeDraggable(Main, Top)
 MakeDraggable(FinFrame, FinTop)
 
 --------------------------------------------------------------------------------
--- 5. TYPING ENGINE
+-- 5. NATURAL TYPING ENGINE
 --------------------------------------------------------------------------------
 local function TypeWord(word, skipCount)
     if not vim then return end 
     isTyping = true
     local isFlex = FlexB.Text:find("ON")
+    
+    -- 1. THINKING TIME (Start Delay)
     local startDelay = GetRandomTime(TYPING_SETTINGS.StartSlowDelay)
-    if isFlex then startDelay = startDelay + 0.05 end; task.wait(startDelay) 
+    if isFlex then startDelay = startDelay + 0.05 end
+    task.wait(startDelay) 
+
     local startIndex = (skipCount or 0) + 1
 
     for i = startIndex, #word do
         local char = word:sub(i,i):upper()
         local code = Enum.KeyCode[char] or (char == "-" and Enum.KeyCode.Minus)
-        if isFlex and math.random() < FLEX_MODIFIERS.TypoChance and i>2 then
-            local k = Enum.KeyCode[string.char(math.random(65, 90))] 
-            pcall(function() vim:SendKeyEvent(true,k,false,game); task.wait(0.01); vim:SendKeyEvent(false,k,false,game) end); task.wait(math.random(15,30)/100)
-            pcall(function() vim:SendKeyEvent(true,Enum.KeyCode.Backspace,false,game); task.wait(0.01); vim:SendKeyEvent(false,Enum.KeyCode.Backspace,false,game) end); task.wait(math.random(10,20)/100)
-        end
-        if code then pcall(function() vim:SendKeyEvent(true,code,false,game); task.wait(0.01); vim:SendKeyEvent(false,code,false,game) end) end
         
+        -- 2. NATURAL TYPO (Fat Finger Logic)
+        if isFlex and math.random() < FLEX_MODIFIERS.TypoChance and i > 2 and i < #word then
+            -- Simulate hitting a key near the target (Randomized for simplicity)
+            local k = Enum.KeyCode[string.char(math.random(65, 90))] 
+            -- Press Wrong Key
+            pcall(function() vim:SendKeyEvent(true,k,false,game); task.wait(0.02); vim:SendKeyEvent(false,k,false,game) end)
+            
+            -- "Oh shoot" reaction time
+            task.wait(math.random(15,35)/100) 
+            
+            -- Backspace
+            pcall(function() vim:SendKeyEvent(true,Enum.KeyCode.Backspace,false,game); task.wait(0.02); vim:SendKeyEvent(false,Enum.KeyCode.Backspace,false,game) end)
+            
+            -- Recovery time
+            task.wait(math.random(10,25)/100)
+        end
+
+        -- 3. PRESS CORRECT KEY
+        if code then 
+            pcall(function() 
+                vim:SendKeyEvent(true,code,false,game)
+                task.wait(math.random(15, 30)/1000) -- Key held down slightly
+                vim:SendKeyEvent(false,code,false,game) 
+            end) 
+        end
+        
+        -- 4. FLOW RHYTHM (The "Human" part)
         local d = GetRandomTime(TYPING_SETTINGS.BaseSpeed)
-        if isFlex then d = d + FLEX_MODIFIERS.SpeedAdder; if math.random()<FLEX_MODIFIERS.BurstChance then d=d-FLEX_MODIFIERS.BurstReduction end; if math.random()<(TYPING_SETTINGS.HesitationChance+FLEX_MODIFIERS.HesitationAdd) then d=d+GetRandomTime(TYPING_SETTINGS.HesitationDelay) end else if math.random()<TYPING_SETTINGS.HesitationChance then d=d+GetRandomTime(TYPING_SETTINGS.HesitationDelay) end end
+        
+        if isFlex then 
+            -- Burst Logic: If we are in a "flow" (middle of word), type faster
+            if i > 3 and i < #word - 2 and math.random() < FLEX_MODIFIERS.BurstChance then
+                d = d - FLEX_MODIFIERS.BurstReduction -- Speed up!
+            end
+            -- Hesitation: Slow down randomly (thinking)
+            if math.random() < FLEX_MODIFIERS.HesitationAdd then
+                d = d + 0.15 
+            end
+        end
+        
+        -- Lock In removes most delays
         if isLockIn then d = d - LOCK_IN_SPEED_BOOST end
-        task.wait(math.max(0.01, d))
+        
+        task.wait(math.max(0.02, d))
     end
+    
+    -- 5. CONFIRMATION DELAY
     task.wait(GetRandomTime(TYPING_SETTINGS.SubmitDelay))
     pcall(function() vim:SendKeyEvent(true,Enum.KeyCode.Return,false,game); task.wait(0.05); vim:SendKeyEvent(false,Enum.KeyCode.Return,false,game) end)
     isTyping = false
@@ -242,7 +284,7 @@ local function DoSearch()
             -- 1. Gather Candidates
             for _, v in ipairs(ALL_WORDS) do
                 yC=yC+1; if yC%8000==0 then task.wait() end
-                if #candidates > 150 then break end
+                if #candidates > 200 then break end
                 local w = Sanitize(v); local wLow = w:lower()
                 if #w >= MIN_LETTER_COUNT and not CheckHist(w) and not IsBlacklisted(w) then
                     local match = false
@@ -254,28 +296,30 @@ local function DoSearch()
             
             ShuffleTable(candidates)
             
-            -- 2. SMART TARGET LOGIC
-            -- Try to reuse the current target if possible
+            -- 2. SMART TARGET LOGIC (Combo System)
             if CurrentTargetSuffix and #CurrentTargetSuffix == FinisherMode then
                 for _, w in ipairs(candidates) do
+                    -- Try to keep the combo alive
                     if w:lower():sub(-FinisherMode) == CurrentTargetSuffix then
                         found = w
-                        break -- Maintain Lock!
+                        TargetStreak = TargetStreak + 1
+                        break 
                     end
                 end
             end
             
-            -- 3. CALCULATE NEW TARGET (If no lock or lock failed)
+            -- 3. NEW LOCK CALCULATION (If combo broke or first run)
             if not found then
                 local bestTrapScore = 9999
                 local newTarget = nil
-                WordStatus.Text = "Calculating New Lock..."
+                WordStatus.Text = "Switching Target..."
                 
                 for _, w in ipairs(candidates) do
                     if #w > FinisherMode then
                         local suffix = w:sub(-FinisherMode):lower()
                         local score = GetStartingCount(suffix)
                         
+                        -- Pick hardest trap
                         if score < bestTrapScore then
                             bestTrapScore = score
                             found = w
@@ -287,6 +331,7 @@ local function DoSearch()
                 
                 -- Set the new lock
                 CurrentTargetSuffix = newTarget
+                TargetStreak = 1
             end
             
             -- Fallback
@@ -318,7 +363,7 @@ local function DoSearch()
             -- VISUAL FEEDBACK
             local extraInfo = ""
             if FinisherMode > 0 and CurrentTargetSuffix then 
-                extraInfo = " [Lock: \"" .. CurrentTargetSuffix:upper() .. "\"]" 
+                extraInfo = " [Lock: \"" .. CurrentTargetSuffix:upper() .. "\" x" .. TargetStreak .. "]" 
             end
             
             WordStatus.Text = "Typing: " .. found .. extraInfo
@@ -346,7 +391,8 @@ LockB.MouseButton1Click:Connect(function() isLockIn=not isLockIn; LockB.Text=isL
 FinMenuB.MouseButton1Click:Connect(function() FinFrame.Visible = not FinFrame.Visible end)
 local function SetFin(mode) 
     FinisherMode = mode
-    CurrentTargetSuffix = nil -- Reset target on mode change
+    CurrentTargetSuffix = nil -- Reset target
+    TargetStreak = 0
     Fin2.BackgroundColor3 = (mode==2) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50)
     Fin3.BackgroundColor3 = (mode==3) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50)
     Fin4.BackgroundColor3 = (mode==4) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50)
