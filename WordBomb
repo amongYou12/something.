@@ -1,41 +1,32 @@
 --[[
     UNPATCHABOMB [v30 - ERROR PROOF EDITION]
+    - RE-DESIGN: Professional Cheat Menu UI
     - FIXED: "interval is empty" crash. Added SafeRandom() wrapper.
     - LOGIC: Automatically swaps numbers if min > max to prevent errors.
     - FEATURES: Smart Target, Dead End Trap, Human Flex, Blacklists.
 ]]--
 
-local SCRIPT_VERSION = "v30_ErrorProof"
+local SCRIPT_VERSION = "v30_ErrorProof_ProUI"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 --------------------------------------------------------------------------------
--- 1. ERROR PROOF MATH ENGINE
+-- 1. ERROR PROOF MATH ENGINE (UNCHANGED)
 --------------------------------------------------------------------------------
--- This wrapper prevents "interval is empty" errors by forcing correct order
 local function SafeRandom(min, max)
     if not min then return 0 end
-    if not max then return math.random(min) end -- Standard behavior if only 1 arg
-    
-    -- Ensure integer inputs for math.random
+    if not max then return math.random(min) end
     min = math.floor(min)
     max = math.floor(max)
-    
-    -- Swap if inverted
-    if min > max then 
-        min, max = max, min 
-    end
-    
-    -- Handle equal case
+    if min > max then min, max = max, min end
     if min == max then return min end
-    
     return math.random(min, max)
 end
 
--- Helper for time tables {0.1, 0.2}
 local function GetRandomTime(tbl)
     local val1 = tbl[1] * 1000
     local val2 = tbl[2] * 1000
@@ -43,7 +34,7 @@ local function GetRandomTime(tbl)
 end
 
 --------------------------------------------------------------------------------
--- 2. PARENTING
+-- 2. PARENTING (UNCHANGED)
 --------------------------------------------------------------------------------
 local function GetUI_Parent()
     if getgenv and getgenv().gethui then return getgenv().gethui() end
@@ -58,7 +49,7 @@ if not ParentTarget then warn("[UPB] Critical: Cannot find GUI Parent.") return 
 if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
 --------------------------------------------------------------------------------
--- 3. SERVICES & SETTINGS
+-- 3. SERVICES & SETTINGS (UNCHANGED)
 --------------------------------------------------------------------------------
 local vim = nil
 local s, r = pcall(function() return game:GetService("VirtualInputManager") end)
@@ -77,10 +68,10 @@ local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something
 local WB_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForWordbomb.txt"
 
 local TYPING_SETTINGS = {
-    BaseSpeed = {0.075, 0.1},        -- Standard speed
-    StartSlowDelay = {0.8, 0.2},   -- Thinking time at start
-    HesitationChance = 0.32,         -- 12% Chance (Normal)
-    HesitationDelay = {0.15, 0.3},  -- Duration of pause
+    BaseSpeed = {0.075, 0.1},
+    StartSlowDelay = {0.8, 0.2},
+    HesitationChance = 0.32,
+    HesitationDelay = {0.15, 0.3},
     SubmitDelay = {0.1, 0.2}         
 }
 
@@ -88,34 +79,30 @@ local FLEX_MODIFIERS = {
     BurstChance = 0.15,        
     BurstSpeed = 0.02,         
     TypoChance = 0.35,         
-    HesitationAdd = 0.1       -- ADDS 15% (Total 27%) when Flex is ON
+    HesitationAdd = 0.1
 }
 local LOCK_IN_MULTIPLIER = 0.6 
 
--- DATA
 local LL_Enabled, WB_Enabled = false, false
 local LL_Table, WB_Table = {}, {}
 local ALL_WORDS, SAVED_LIST_UI = {}, {}
 local SESSION_BLACKLIST = {} 
 local isTyping, lastFound, isLockIn = false, "", false
 local FinisherMode = 0 
-
--- SMART TARGET VARS
 local CurrentTargetSuffix = nil 
 local TargetStreak = 0
 
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
 
--- UTILS
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
 local function Sanitize(s) return s:gsub("%s+", ""):gsub("[^a-zA-Z0-9%-]", "") end
 
 local function ShuffleTable(t)
-    if #t < 2 then return end -- Prevent error on empty/single tables
+    if #t < 2 then return end
     for i = #t, 2, -1 do
-        local j = SafeRandom(1, i) -- Use SafeRandom
+        local j = SafeRandom(1, i)
         t[i], t[j] = t[j], t[i]
     end
 end
@@ -154,55 +141,338 @@ local function GetStartingCount(suffix)
 end
 
 --------------------------------------------------------------------------------
--- 4. UI CREATION
+-- 4. PROFESSIONAL UI ENGINE
 --------------------------------------------------------------------------------
-local Screen = Instance.new("ScreenGui"); Screen.Name = "Unpatchabomb"; Screen.Parent = ParentTarget; Screen.ResetOnSpawn = false
+local Screen = Instance.new("ScreenGui")
+Screen.Name = "Unpatchabomb"
+Screen.Parent = ParentTarget
+Screen.ResetOnSpawn = false
+Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local Main = Instance.new("Frame"); Main.Parent = Screen; Main.BackgroundColor3 = Color3.fromRGB(20,20,20); Main.Size = UDim2.new(0, 400, 0, 340); Main.Position = UDim2.new(0.5, -200, 0.5, -170); Main.BorderSizePixel = 0
-local Corner = Instance.new("UICorner"); Corner.Parent = Main
-local Top = Instance.new("Frame"); Top.Parent = Main; Top.BackgroundColor3 = Color3.fromRGB(30,30,30); Top.Size = UDim2.new(1,0,0,35)
-local TopCorner = Instance.new("UICorner"); TopCorner.Parent = Top
-local Title = Instance.new("TextLabel"); Title.Parent = Top; Title.BackgroundTransparency = 1; Title.Size = UDim2.new(1,0,1,0); Title.Text = "  UNPATCHABOMB v30 [ERROR PROOF]"; Title.TextColor3 = Color3.new(1,1,1); Title.Font = Enum.Font.GothamBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.TextSize = 14
+--// THEME COLORS
+local Theme = {
+    Background = Color3.fromRGB(20, 20, 20),
+    Sidebar = Color3.fromRGB(25, 25, 25),
+    Section = Color3.fromRGB(30, 30, 30),
+    Accent = Color3.fromRGB(155, 89, 182), -- Violet
+    AccentHover = Color3.fromRGB(170, 100, 200),
+    Text = Color3.fromRGB(240, 240, 240),
+    SubText = Color3.fromRGB(150, 150, 150),
+    Red = Color3.fromRGB(231, 76, 60),
+    Green = Color3.fromRGB(46, 204, 113)
+}
 
-local FinFrame = Instance.new("Frame"); FinFrame.Name = "FinisherFrame"; FinFrame.Parent = Screen; FinFrame.BackgroundColor3 = Color3.fromRGB(25,25,25); FinFrame.Size = UDim2.new(0, 200, 0, 180); FinFrame.Position = UDim2.new(0.5, 210, 0.5, -170); FinFrame.Visible = false
-Instance.new("UICorner", FinFrame)
-local FinTop = Instance.new("Frame"); FinTop.Parent = FinFrame; FinTop.BackgroundColor3 = Color3.fromRGB(35,35,35); FinTop.Size = UDim2.new(1,0,0,30)
-Instance.new("UICorner", FinTop)
-local FinTitle = Instance.new("TextLabel"); FinTitle.Parent = FinTop; FinTitle.Size = UDim2.new(1,0,1,0); FinTitle.BackgroundTransparency = 1; FinTitle.Text = "Trap Settings"; FinTitle.TextColor3 = Color3.new(1,1,1); FinTitle.Font = Enum.Font.GothamBold; FinTitle.TextSize = 12
+--// HELPER FUNCTIONS
+local function Round(obj, rad)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, rad or 6)
+    c.Parent = obj
+    return c
+end
 
-local ListView = Instance.new("Frame"); ListView.Parent = Screen; ListView.Size = UDim2.new(0,200,0,280); ListView.Position = UDim2.new(0.5, 210, 0.5, 20); ListView.BackgroundColor3 = Color3.fromRGB(25,25,25); ListView.Visible = false
-Instance.new("UICorner", ListView)
-local ListScroll = Instance.new("ScrollingFrame"); ListScroll.Parent = ListView; ListScroll.Size = UDim2.new(0.9,0,0.7,0); ListScroll.Position = UDim2.new(0.05,0,0.1,0); ListScroll.BackgroundTransparency = 1; ListScroll.CanvasSize = UDim2.new(0,0,0,0)
-Instance.new("UIListLayout", ListScroll)
+local function CreateTween(obj, props, time)
+    TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+end
 
-local WordStatus = Instance.new("TextLabel"); WordStatus.Parent = Main; WordStatus.Position = UDim2.new(0,0,0.11,0); WordStatus.Size = UDim2.new(1,0,0.08,0); WordStatus.BackgroundTransparency = 1; WordStatus.Text = "Dictionary Loading..."; WordStatus.TextColor3 = Color3.fromRGB(200,200,200); WordStatus.Font = Enum.Font.GothamMedium; WordStatus.TextSize = 13
-local Input = Instance.new("TextBox"); Input.Parent = Main; Input.Position = UDim2.new(0.05,0,0.20,0); Input.Size = UDim2.new(0.65,0,0.11,0); Input.BackgroundColor3 = Color3.fromRGB(40,40,40); Input.Text = ""; Input.PlaceholderText = "Input letters..."; Input.TextColor3 = Color3.new(1,1,1); Input.Font = Enum.Font.GothamBold; Instance.new("UICorner", Input)
-local RunBtn = Instance.new("TextButton"); RunBtn.Parent = Main; RunBtn.Position = UDim2.new(0.73,0,0.20,0); RunBtn.Size = UDim2.new(0.22,0,0.11,0); RunBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113); RunBtn.Text = "▶"; RunBtn.TextSize = 18; RunBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", RunBtn)
+--// MAIN FRAME
+local Main = Instance.new("Frame")
+Main.Name = "MainFrame"
+Main.Parent = Screen
+Main.BackgroundColor3 = Theme.Background
+Main.Size = UDim2.new(0, 500, 0, 320)
+Main.Position = UDim2.new(0.5, -250, 0.5, -160)
+Main.BorderSizePixel = 0
+Round(Main, 8)
 
-local function Btn(parent, text, pos, size, color)
-    local b = Instance.new("TextButton"); b.Parent = parent; b.Position = pos; b.Size = size; b.BackgroundColor3 = color; b.Text = text; b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.GothamBold; b.TextSize = 9
-    Instance.new("UICorner", b)
+-- Shadow
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.Parent = Main
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0, -15, 0, -15)
+Shadow.Size = UDim2.new(1, 30, 1, 30)
+Shadow.ZIndex = 0
+Shadow.Image = "rbxassetid://5554236805"
+Shadow.ImageColor3 = Color3.fromRGB(0,0,0)
+Shadow.ImageTransparency = 0.4
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(23,23,277,277)
+
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Parent = Main
+TopBar.BackgroundColor3 = Theme.Sidebar
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BorderSizePixel = 0
+Round(TopBar, 8)
+
+local Title = Instance.new("TextLabel")
+Title.Parent = TopBar
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.Size = UDim2.new(0.5, 0, 1, 0)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "UNPATCHABOMB"
+Title.TextColor3 = Theme.Accent
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local Version = Instance.new("TextLabel")
+Version.Parent = TopBar
+Version.BackgroundTransparency = 1
+Version.Position = UDim2.new(0.85, -12, 0, 0)
+Version.Size = UDim2.new(0.15, 0, 1, 0)
+Version.Font = Enum.Font.Gotham
+Version.Text = "v30"
+Version.TextColor3 = Theme.SubText
+Version.TextSize = 12
+Version.TextXAlignment = Enum.TextXAlignment.Right
+
+-- Sidebar (Tabs)
+local Sidebar = Instance.new("Frame")
+Sidebar.Parent = Main
+Sidebar.BackgroundColor3 = Theme.Sidebar
+Sidebar.Position = UDim2.new(0, 0, 0, 35)
+Sidebar.Size = UDim2.new(0, 110, 1, -35)
+Sidebar.BorderSizePixel = 0
+local SideCorner = Instance.new("UICorner"); SideCorner.CornerRadius = UDim.new(0,8); SideCorner.Parent = Sidebar
+local FixCorner = Instance.new("Frame"); FixCorner.Parent = Sidebar; FixCorner.BackgroundColor3 = Theme.Sidebar; FixCorner.BorderSizePixel=0; FixCorner.Size = UDim2.new(1,0,0,10); FixCorner.Position=UDim2.new(0,0,0,0) -- Hides top roundness
+
+local TabContainer = Instance.new("Frame")
+TabContainer.Parent = Main
+TabContainer.BackgroundTransparency = 1
+TabContainer.Position = UDim2.new(0, 120, 0, 45)
+TabContainer.Size = UDim2.new(0, 370, 0, 265)
+
+--// TAB LOGIC
+local Tabs = {}
+local CurrentTab = nil
+
+local function SwitchTab(name)
+    for _, t in pairs(Tabs) do
+        if t.Name == name then
+            t.Frame.Visible = true
+            CreateTween(t.Btn, {TextColor3 = Theme.Accent, BackgroundTransparency = 0.9})
+        else
+            t.Frame.Visible = false
+            CreateTween(t.Btn, {TextColor3 = Theme.SubText, BackgroundTransparency = 1})
+        end
+    end
+end
+
+local function CreateTab(name, icon)
+    local tBtn = Instance.new("TextButton")
+    tBtn.Parent = Sidebar
+    tBtn.BackgroundColor3 = Theme.Accent
+    tBtn.BackgroundTransparency = 1
+    tBtn.Size = UDim2.new(0.9, 0, 0, 30)
+    tBtn.Position = UDim2.new(0.05, 0, 0, 10 + (#Tabs * 35))
+    tBtn.Font = Enum.Font.GothamBold
+    tBtn.Text = name
+    tBtn.TextColor3 = Theme.SubText
+    tBtn.TextSize = 12
+    Round(tBtn, 6)
+    
+    local tFrame = Instance.new("ScrollingFrame")
+    tFrame.Parent = TabContainer
+    tFrame.BackgroundTransparency = 1
+    tFrame.Size = UDim2.new(1,0,1,0)
+    tFrame.ScrollBarThickness = 2
+    tFrame.ScrollBarImageColor3 = Theme.Accent
+    tFrame.Visible = false
+    
+    local list = Instance.new("UIListLayout")
+    list.Parent = tFrame
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Padding = UDim.new(0, 8)
+    
+    table.insert(Tabs, {Name=name, Btn=tBtn, Frame=tFrame})
+    
+    tBtn.MouseButton1Click:Connect(function() SwitchTab(name) end)
+    
+    return tFrame
+end
+
+local Page_Main = CreateTab("Main")
+local Page_Trap = CreateTab("Trap Mode")
+local Page_Data = CreateTab("Settings")
+
+--// UI COMPONENTS
+
+-- Input Box (Styled)
+local InputContainer = Instance.new("Frame")
+InputContainer.Parent = Page_Main
+InputContainer.BackgroundColor3 = Theme.Section
+InputContainer.Size = UDim2.new(1, -5, 0, 40)
+Round(InputContainer, 6)
+
+local Input = Instance.new("TextBox")
+Input.Parent = InputContainer
+Input.BackgroundTransparency = 1
+Input.Position = UDim2.new(0, 10, 0, 0)
+Input.Size = UDim2.new(0.8, -10, 1, 0)
+Input.Font = Enum.Font.GothamBold
+Input.PlaceholderText = "Type syllable here..."
+Input.Text = ""
+Input.TextColor3 = Theme.Text
+Input.PlaceholderColor3 = Theme.SubText
+Input.TextSize = 14
+Input.TextXAlignment = Enum.TextXAlignment.Left
+
+local RunBtn = Instance.new("TextButton")
+RunBtn.Parent = InputContainer
+RunBtn.BackgroundColor3 = Theme.Green
+RunBtn.Position = UDim2.new(0.82, 0, 0.15, 0)
+RunBtn.Size = UDim2.new(0.16, 0, 0.7, 0)
+RunBtn.Font = Enum.Font.GothamBold
+RunBtn.Text = "RUN"
+RunBtn.TextColor3 = Color3.new(1,1,1)
+RunBtn.TextSize = 12
+Round(RunBtn, 4)
+
+-- Status Bar (Moved to bottom of main)
+local StatusBar = Instance.new("Frame")
+StatusBar.Parent = Main
+StatusBar.BackgroundColor3 = Theme.Sidebar
+StatusBar.Position = UDim2.new(0, 0, 1, -20)
+StatusBar.Size = UDim2.new(1, 0, 0, 20)
+StatusBar.BorderSizePixel = 0
+local bC = Instance.new("UICorner"); bC.CornerRadius=UDim.new(0,8); bC.Parent=StatusBar
+
+local WordStatus = Instance.new("TextLabel")
+WordStatus.Parent = StatusBar
+WordStatus.BackgroundTransparency = 1
+WordStatus.Position = UDim2.new(0, 10, 0, 0)
+WordStatus.Size = UDim2.new(1, -20, 1, 0)
+WordStatus.Font = Enum.Font.GothamMedium
+WordStatus.Text = "Waiting for input..."
+WordStatus.TextColor3 = Theme.SubText
+WordStatus.TextSize = 11
+WordStatus.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Component: Toggle Button
+local function CreateToggleButton(parent, text, defaultOff)
+    local Container = Instance.new("TextButton")
+    Container.Parent = parent
+    Container.BackgroundColor3 = Theme.Section
+    Container.Size = UDim2.new(1, -5, 0, 35)
+    Container.AutoButtonColor = false
+    Container.Text = ""
+    Round(Container, 6)
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Container
+    Label.BackgroundTransparency = 1
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.Size = UDim2.new(0.7, 0, 1, 0)
+    Label.Font = Enum.Font.GothamBold
+    Label.Text = text
+    Label.TextColor3 = Theme.Text
+    Label.TextSize = 12
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local StatusText = Instance.new("TextLabel")
+    StatusText.Parent = Container
+    StatusText.BackgroundTransparency = 1
+    StatusText.Position = UDim2.new(0.7, 0, 0, 0)
+    StatusText.Size = UDim2.new(0.25, 0, 1, 0)
+    StatusText.Font = Enum.Font.GothamBold
+    StatusText.Text = "OFF"
+    StatusText.TextColor3 = Theme.SubText
+    StatusText.TextSize = 12
+    StatusText.TextXAlignment = Enum.TextXAlignment.Right
+    
+    -- Custom logic to mimic the old button behavior visually
+    local isOn = false
+    Container.MouseButton1Click:Connect(function()
+        -- The logic handling happens in the connections, this just animates
+        -- We will rely on the Text Property check in the logic to toggle state, 
+        -- but we update visuals here to look good.
+    end)
+    
+    -- Wrapper to let the main logic access .Text
+    -- The main logic checks: if Btn.Text:find("OFF")
+    -- We need to proxy this or structure the button so the text matches logic expectations.
+    -- To keep "Don't change logic" valid, we will use the `Container` as the button returned.
+    -- We will store the state in the container's Text for the logic to read.
+    Container.Text = text .. ": OFF" 
+    Container.TextTransparency = 1 -- Hide the actual text logic uses
+    
+    -- Hook update
+    Container:GetPropertyChangedSignal("Text"):Connect(function()
+        if Container.Text:find("ON") then
+            StatusText.Text = "ON"
+            StatusText.TextColor3 = Theme.Accent
+            CreateTween(Container, {BackgroundColor3 = Color3.fromRGB(40, 40, 45)})
+        else
+            StatusText.Text = "OFF"
+            StatusText.TextColor3 = Theme.SubText
+            CreateTween(Container, {BackgroundColor3 = Theme.Section})
+        end
+    end)
+    
+    return Container
+end
+
+-- Component: Action Button
+local function CreateActionBtn(parent, text, color)
+    local b = Instance.new("TextButton")
+    b.Parent = parent
+    b.BackgroundColor3 = color or Theme.Section
+    b.Size = UDim2.new(1, -5, 0, 30)
+    b.Font = Enum.Font.GothamBold
+    b.Text = text
+    b.TextColor3 = Theme.Text
+    b.TextSize = 12
+    Round(b, 6)
     return b
 end
 
-local FirstB = Btn(Main, "First: OFF",    UDim2.new(0.05,0,0.34,0), UDim2.new(0.20,0,0.09,0), Color3.fromRGB(50,50,50))
-local ShortB = Btn(Main, "Short: OFF",    UDim2.new(0.27,0,0.34,0), UDim2.new(0.20,0,0.09,0), Color3.fromRGB(50,50,50))
-local FlexB  = Btn(Main, "Flex: OFF",     UDim2.new(0.49,0,0.34,0), UDim2.new(0.20,0,0.09,0), Color3.fromRGB(50,50,50))
-local LockB  = Btn(Main, "Lock: OFF",     UDim2.new(0.71,0,0.34,0), UDim2.new(0.20,0,0.09,0), Color3.fromRGB(50,50,50))
-local FinMenuB = Btn(Main, "Finisher Menu", UDim2.new(0.05,0,0.47,0), UDim2.new(0.9,0,0.10,0), Color3.fromRGB(142, 68, 173))
+-- PAGE 1 ELEMENTS
+local Label1 = Instance.new("TextLabel"); Label1.Parent = Page_Main; Label1.BackgroundTransparency=1; Label1.Text="  TARGETING"; Label1.Size=UDim2.new(1,0,0,20); Label1.Font=Enum.Font.GothamBold; Label1.TextColor3=Theme.SubText; Label1.TextXAlignment=Enum.TextXAlignment.Left; Label1.TextSize=10
 
-local LL_Btn = Btn(Main, "Last Letter Blacklist", UDim2.new(0.05,0,0.60,0), UDim2.new(0.44,0,0.10,0), Color3.fromRGB(40,40,40))
-local WB_Btn = Btn(Main, "Word Bomb Blacklist",   UDim2.new(0.51,0,0.60,0), UDim2.new(0.44,0,0.10,0), Color3.fromRGB(40,40,40))
-local SaveB  = Btn(Main, "Save & Blacklist",      UDim2.new(0.05,0,0.73,0), UDim2.new(0.44,0,0.12,0), Color3.fromRGB(230, 126, 34))
-local ListB  = Btn(Main, "View Saved List",       UDim2.new(0.51,0,0.73,0), UDim2.new(0.44,0,0.12,0), Color3.fromRGB(155, 89, 182))
-local ResetB = Btn(Main, "Reset History",         UDim2.new(0.05,0,0.88,0), UDim2.new(0.9,0,0.08,0), Color3.fromRGB(192, 57, 43))
-local CopyBtn= Btn(ListView, "Copy All", UDim2.new(0.1,0,0.85,0), UDim2.new(0.8,0,0.1,0), Color3.fromRGB(60,60,60))
+local FirstB = CreateToggleButton(Page_Main, "First Match")
+local ShortB = CreateToggleButton(Page_Main, "Shortest Word")
+local FlexB  = CreateToggleButton(Page_Main, "Human Flex")
+local LockB  = CreateToggleButton(Page_Main, "Lock-In Mode")
 
-local Fin2 = Btn(FinFrame, "2 Letters (Trap)", UDim2.new(0.1,0,0.25,0), UDim2.new(0.8,0,0.15,0), Color3.fromRGB(50,50,50))
-local Fin3 = Btn(FinFrame, "3 Letters (Trap)", UDim2.new(0.1,0,0.45,0), UDim2.new(0.8,0,0.15,0), Color3.fromRGB(50,50,50))
-local Fin4 = Btn(FinFrame, "4 Letters (Trap)", UDim2.new(0.1,0,0.65,0), UDim2.new(0.8,0,0.15,0), Color3.fromRGB(50,50,50))
-local FinStatus = Instance.new("TextLabel"); FinStatus.Parent = FinFrame; FinStatus.Position = UDim2.new(0,0,0.85,0); FinStatus.Size = UDim2.new(1,0,0.1,0); FinStatus.BackgroundTransparency = 1; FinStatus.TextColor3 = Color3.fromRGB(200,200,200); FinStatus.Text = "Mode: OFF"; FinStatus.Font = Enum.Font.GothamBold; FinStatus.TextSize=10
+-- PAGE 2 ELEMENTS (Finisher)
+local Label2 = Instance.new("TextLabel"); Label2.Parent = Page_Trap; Label2.BackgroundTransparency=1; Label2.Text="  TRAP MODE (Force specific ending)"; Label2.Size=UDim2.new(1,0,0,20); Label2.Font=Enum.Font.GothamBold; Label2.TextColor3=Theme.SubText; Label2.TextXAlignment=Enum.TextXAlignment.Left; Label2.TextSize=10
 
+local Fin2 = CreateActionBtn(Page_Trap, "Trap with 2 Letters", Theme.Section)
+local Fin3 = CreateActionBtn(Page_Trap, "Trap with 3 Letters", Theme.Section)
+local Fin4 = CreateActionBtn(Page_Trap, "Trap with 4 Letters", Theme.Section)
+
+local FinStatus = Instance.new("TextLabel")
+FinStatus.Parent = Page_Trap
+FinStatus.BackgroundTransparency = 1
+FinStatus.Size = UDim2.new(1, -5, 0, 30)
+FinStatus.Font = Enum.Font.Gotham
+FinStatus.Text = "Trap Mode: OFF"
+FinStatus.TextColor3 = Theme.SubText
+FinStatus.TextSize = 12
+
+-- PAGE 3 ELEMENTS (Data)
+local Label3 = Instance.new("TextLabel"); Label3.Parent = Page_Data; Label3.BackgroundTransparency=1; Label3.Text="  BLACKLISTS"; Label3.Size=UDim2.new(1,0,0,20); Label3.Font=Enum.Font.GothamBold; Label3.TextColor3=Theme.SubText; Label3.TextXAlignment=Enum.TextXAlignment.Left; Label3.TextSize=10
+
+local LL_Btn = CreateActionBtn(Page_Data, "Last Letter Blacklist", Theme.Section)
+local WB_Btn = CreateActionBtn(Page_Data, "Word Bomb Blacklist", Theme.Section)
+
+local Label4 = Instance.new("TextLabel"); Label4.Parent = Page_Data; Label4.BackgroundTransparency=1; Label4.Text="  HISTORY"; Label4.Size=UDim2.new(1,0,0,20); Label4.Font=Enum.Font.GothamBold; Label4.TextColor3=Theme.SubText; Label4.TextXAlignment=Enum.TextXAlignment.Left; Label4.TextSize=10
+
+local SaveB  = CreateActionBtn(Page_Data, "Blacklist Last Word", Theme.Red)
+local ListB  = CreateActionBtn(Page_Data, "Toggle List View", Theme.Accent)
+local ResetB = CreateActionBtn(Page_Data, "Clear Session History", Theme.Section)
+
+-- POPUP LIST VIEW (Re-styled)
+local ListView = Instance.new("Frame"); ListView.Parent = Screen; ListView.Size = UDim2.new(0,200,0,280); ListView.Position = UDim2.new(0.5, 260, 0.5, -140); ListView.BackgroundColor3 = Theme.Background; ListView.Visible = false
+Round(ListView, 8); ListView.BorderSizePixel = 0
+local ListShadow = Shadow:Clone(); ListShadow.Parent = ListView
+local ListScroll = Instance.new("ScrollingFrame"); ListScroll.Parent = ListView; ListScroll.Size = UDim2.new(0.9,0,0.8,0); ListScroll.Position = UDim2.new(0.05,0,0.05,0); ListScroll.BackgroundTransparency = 1; ListScroll.CanvasSize = UDim2.new(0,0,0,0); ListScroll.ScrollBarThickness=2; ListScroll.ScrollBarImageColor3=Theme.Accent
+Instance.new("UIListLayout", ListScroll)
+local CopyBtn= CreateActionBtn(ListView, "Copy All", Theme.Section); CopyBtn.Position = UDim2.new(0.05,0,0.88,0); CopyBtn.Size = UDim2.new(0.9,0,0.1,0)
+
+-- DRAG LOGIC
 local function MakeDraggable(frame, trigger)
     local drag, start, startPos
     trigger.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=true; start=i.Position; startPos=frame.Position end end)
@@ -210,11 +480,16 @@ local function MakeDraggable(frame, trigger)
     UserInputService.InputChanged:Connect(function(i) if i==dragInput and drag then local d=i.Position-start; frame.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
 end
-MakeDraggable(Main, Top)
-MakeDraggable(FinFrame, FinTop)
+MakeDraggable(Main, TopBar)
+
+-- Init
+SwitchTab("Main")
+
+-- SAVED LIST PLACEHOLDER
+local SAVED_LIST_UI_LIST = {} -- Ref for list
 
 --------------------------------------------------------------------------------
--- 5. TYPING ENGINE (FIXED)
+-- 5. TYPING ENGINE (UNCHANGED)
 --------------------------------------------------------------------------------
 local function TypeWord(word, skipCount)
     if not vim then return end 
@@ -277,7 +552,7 @@ local function TypeWord(word, skipCount)
 end
 
 --------------------------------------------------------------------------------
--- 6. SEARCH ENGINE
+-- 6. SEARCH ENGINE (UNCHANGED)
 --------------------------------------------------------------------------------
 local function DoSearch()
     if isTyping then return end
@@ -362,35 +637,85 @@ local function DoSearch()
             local extraInfo = ""
             if FinisherMode > 0 and CurrentTargetSuffix then extraInfo = " [Lock: \"" .. CurrentTargetSuffix:upper() .. "\" x" .. TargetStreak .. "]" end
             WordStatus.Text = "Typing: " .. found .. extraInfo
-            WordStatus.TextColor3 = (FinisherMode > 0) and Color3.fromRGB(255, 100, 255) or Color3.fromRGB(0, 200, 255)
+            WordStatus.TextColor3 = (FinisherMode > 0) and Theme.Accent or Theme.Text
             AddHist(found)
             task.wait(0.1) 
             local skip = 0; if isFirstMode then skip = #query end
             TypeWord(found, skip)
         else
             WordStatus.Text = "No word found!"
-            WordStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+            WordStatus.TextColor3 = Theme.Red
         end
     end)
 end
 
 --------------------------------------------------------------------------------
--- 8. CONNECTIONS
+-- 8. CONNECTIONS (UPDATED VISUALS)
 --------------------------------------------------------------------------------
-FirstB.MouseButton1Click:Connect(function() local on=FirstB.Text:find("OFF"); FirstB.Text=on and "First: ON" or "First: OFF"; FirstB.BackgroundColor3=on and Color3.fromRGB(230,126,34) or Color3.fromRGB(50,50,50) end)
-ShortB.MouseButton1Click:Connect(function() local on=ShortB.Text:find("OFF"); ShortB.Text=on and "Short: ON" or "Short: OFF"; ShortB.BackgroundColor3=on and Color3.fromRGB(241,196,15) or Color3.fromRGB(50,50,50); if on then FlexB.Text="Flex: OFF"; FlexB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
-FlexB.MouseButton1Click:Connect(function() local on=FlexB.Text:find("OFF"); FlexB.Text=on and "Flex: ON" or "Flex: OFF"; FlexB.BackgroundColor3=on and Color3.fromRGB(46,204,113) or Color3.fromRGB(50,50,50); if on then ShortB.Text="Short: OFF"; ShortB.BackgroundColor3=Color3.fromRGB(50,50,50) end end)
-LockB.MouseButton1Click:Connect(function() isLockIn=not isLockIn; LockB.Text=isLockIn and "Lock: ON" or "Lock: OFF"; LockB.BackgroundColor3=isLockIn and Color3.fromRGB(52,152,219) or Color3.fromRGB(50,50,50) end)
+FirstB.MouseButton1Click:Connect(function() 
+    local on=FirstB.Text:find("OFF") 
+    FirstB.Text=on and "First Match: ON" or "First Match: OFF" 
+    -- Color handled by property signal
+end)
 
-FinMenuB.MouseButton1Click:Connect(function() FinFrame.Visible = not FinFrame.Visible end)
-local function SetFin(mode) FinisherMode = mode; CurrentTargetSuffix = nil; TargetStreak = 0; Fin2.BackgroundColor3 = (mode==2) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50); Fin3.BackgroundColor3 = (mode==3) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50); Fin4.BackgroundColor3 = (mode==4) and Color3.fromRGB(155, 89, 182) or Color3.fromRGB(50,50,50); FinStatus.Text = (mode==0) and "Mode: OFF" or ("Mode: Trap " .. mode .. " Letters") end
+ShortB.MouseButton1Click:Connect(function() 
+    local on=ShortB.Text:find("OFF")
+    ShortB.Text=on and "Shortest Word: ON" or "Shortest Word: OFF"
+    if on then FlexB.Text="Human Flex: OFF" end -- Mutual exclusive
+end)
+
+FlexB.MouseButton1Click:Connect(function() 
+    local on=FlexB.Text:find("OFF")
+    FlexB.Text=on and "Human Flex: ON" or "Human Flex: OFF"
+    if on then ShortB.Text="Shortest Word: OFF" end -- Mutual exclusive
+end)
+
+LockB.MouseButton1Click:Connect(function() 
+    isLockIn=not isLockIn
+    LockB.Text=isLockIn and "Lock-In Mode: ON" or "Lock-In Mode: OFF"
+end)
+
+local function SetFin(mode) 
+    FinisherMode = mode
+    CurrentTargetSuffix = nil
+    TargetStreak = 0
+    
+    -- Visual update for Radio Buttons
+    Fin2.TextColor3 = (mode==2) and Theme.Accent or Theme.Text
+    Fin3.TextColor3 = (mode==3) and Theme.Accent or Theme.Text
+    Fin4.TextColor3 = (mode==4) and Theme.Accent or Theme.Text
+    
+    FinStatus.Text = (mode==0) and "Trap Mode: OFF" or ("Trap Enabled: " .. mode .. " Letter Suffix")
+    FinStatus.TextColor3 = (mode==0) and Theme.SubText or Theme.Accent
+end
+
 Fin2.MouseButton1Click:Connect(function() SetFin(FinisherMode==2 and 0 or 2) end)
 Fin3.MouseButton1Click:Connect(function() SetFin(FinisherMode==3 and 0 or 3) end)
 Fin4.MouseButton1Click:Connect(function() SetFin(FinisherMode==4 and 0 or 4) end)
 
-SaveB.MouseButton1Click:Connect(function() if lastFound=="" then return end; SESSION_BLACKLIST[lastFound:lower()]=true; table.insert(SAVED_LIST_UI, lastFound); local l=Instance.new("TextLabel"); l.Parent=ListScroll; l.Size=UDim2.new(1,0,0,20); l.BackgroundTransparency=1; l.TextColor3=Color3.new(0.8,0.8,0.8); l.TextSize=10; l.Text=lastFound; l.Font=Enum.Font.Gotham; ListScroll.CanvasSize=UDim2.new(0,0,0,#SAVED_LIST_UI*20); WordStatus.Text="Blacklisted: "..lastFound end)
-LL_Btn.MouseButton1Click:Connect(function() LL_Enabled=not LL_Enabled; if LL_Enabled and next(LL_Table)==nil then WordStatus.Text="DL Blacklist..."; FetchBlacklist(LL_BLACKLIST_URL, LL_Table) end; LL_Btn.BackgroundColor3=LL_Enabled and Color3.fromRGB(211,84,0) or Color3.fromRGB(40,40,40); LL_Btn.Text=LL_Enabled and "LL Blacklist: ON" or "Last Letter Blacklist" end)
-WB_Btn.MouseButton1Click:Connect(function() WB_Enabled=not WB_Enabled; if WB_Enabled and next(WB_Table)==nil then WordStatus.Text="DL Blacklist..."; FetchBlacklist(WB_BLACKLIST_URL, WB_Table) end; WB_Btn.BackgroundColor3=WB_Enabled and Color3.fromRGB(192,57,43) or Color3.fromRGB(40,40,40); WB_Btn.Text=WB_Enabled and "WB Blacklist: ON" or "Word Bomb Blacklist" end)
+SaveB.MouseButton1Click:Connect(function() 
+    if lastFound=="" then return end
+    SESSION_BLACKLIST[lastFound:lower()]=true
+    table.insert(SAVED_LIST_UI, lastFound)
+    local l=Instance.new("TextLabel"); l.Parent=ListScroll; l.Size=UDim2.new(1,0,0,20); l.BackgroundTransparency=1; l.TextColor3=Theme.Text; l.TextSize=12; l.Text=lastFound; l.Font=Enum.Font.Gotham; 
+    ListScroll.CanvasSize=UDim2.new(0,0,0,#SAVED_LIST_UI*20)
+    WordStatus.Text="Blacklisted: "..lastFound 
+end)
+
+LL_Btn.MouseButton1Click:Connect(function() 
+    LL_Enabled=not LL_Enabled
+    if LL_Enabled and next(LL_Table)==nil then WordStatus.Text="DL Blacklist..."; FetchBlacklist(LL_BLACKLIST_URL, LL_Table) end
+    LL_Btn.TextColor3=LL_Enabled and Theme.Accent or Theme.Text
+    LL_Btn.Text=LL_Enabled and "Last Letter Blacklist (Active)" or "Last Letter Blacklist" 
+end)
+
+WB_Btn.MouseButton1Click:Connect(function() 
+    WB_Enabled=not WB_Enabled
+    if WB_Enabled and next(WB_Table)==nil then WordStatus.Text="DL Blacklist..."; FetchBlacklist(WB_BLACKLIST_URL, WB_Table) end
+    WB_Btn.TextColor3=WB_Enabled and Theme.Accent or Theme.Text
+    WB_Btn.Text=WB_Enabled and "Word Bomb Blacklist (Active)" or "Word Bomb Blacklist" 
+end)
+
 ListB.MouseButton1Click:Connect(function() ListView.Visible = not ListView.Visible end)
 CopyBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard(table.concat(SAVED_LIST_UI, ", ")); CopyBtn.Text="Copied!" task.wait(1) CopyBtn.Text="Copy All" end end)
 ResetB.MouseButton1Click:Connect(function() GlobalEnv._UPB_History={}; WordStatus.Text="History Cleared" end)
@@ -405,4 +730,6 @@ task.spawn(function()
         if s then for line in content:gmatch("[^\r\n]+") do table.insert(ALL_WORDS, line) count=count+1 end end
     end
     WordStatus.Text = "Loaded " .. count .. " Words"
+    task.wait(2)
+    WordStatus.Text = "Ready"
 end)
