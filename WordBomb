@@ -32,8 +32,8 @@ local FLEX_MODIFIERS = {
     SpeedAdder = 0.05,
     BurstChance = 0.40,
     BurstReduction = 0.050,
-    TypoChance = 0.10,
-    HesitationAdd = 0.15
+    TypoChance = 0.04,
+    HesitationAdd = 0.04
 }
 
 local LOCK_IN_SPEED_BOOST = 0.040 
