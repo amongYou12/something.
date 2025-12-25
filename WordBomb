@@ -78,8 +78,8 @@ local TYPING_SETTINGS = {
 local FLEX_MODIFIERS = {
     BurstChance = 0.15,        
     BurstSpeed = 0.02,         
-    TypoChance = 0.15,         
-    HesitationAdd = 0.05
+    TypoChance = 0.20,         
+    HesitationAdd = 0.15
 }
 local LOCK_IN_MULTIPLIER = 0.6 
 
