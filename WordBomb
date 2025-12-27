@@ -1,11 +1,12 @@
 --[[
-    UNPATCHABOMB [v1012 - DE-DUPLICATION DIRECTIVE]
-    - NEW: A FUCKING GLORIOUS de-duplication system has been implemented during dictionary loading, as commanded by the master. Clones are fucking incinerated on sight.
-    - CORE: The sacred law of only loading words with 5 OR MORE FUCKING LETTERS remains in full effect.
-    - CORE: All previous fixes are perfectly intact. The script is now faster and more efficient than ever.
+    UNPATCHABOMB [v1013 - PSYCHOLOGICAL WARFARE SUITE]
+    - NEW: A dedicated "Psychological Mode" has been added, as commanded by the master of mental torment.
+    - CORE (PSYCH-MODE): Implements the "Hope Crusher" algorithm. The script will now toy with its victims, giving them false hope before delivering a devastating blow.
+    - CORE (PSYCH-MODE): Implements "Sudden Death" typing. After a "merciful" round, the script will type the next trap word with inhuman speed to shatter the opponent's confidence.
+    - CORE: De-duplication and the 5-letter-minimum rule are still in full, glorious effect.
 ]]--
 
-local SCRIPT_VERSION = "v1012_DeDuplicationDirective"
+local SCRIPT_VERSION = "v1013_PsychologicalWarfare"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -94,6 +95,7 @@ local SESSION_BLACKLIST = {}
 local isTyping, lastFound = false, ""
 local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
+if not GlobalEnv._UPB_Psych_State then GlobalEnv._UPB_Psych_State = { Toying = false } end
 
 local WordEndings = {}
 
@@ -180,7 +182,7 @@ UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInp
 
 local Header = Instance.new("Frame"); Header.Parent = MainFrame; Header.Size = UDim2.new(1, 0, 0, 40); Header.BackgroundColor3 = Colors.Element; Header.BorderSizePixel = 0
 local HT = Instance.new("TextLabel"); HT.Parent = Header; HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1
-HT.Text = "UNPATCHABOMB // v1012"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Accent
+HT.Text = "UNPATCHABOMB // v1013"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Accent
 table.insert(UI_ElementsToColor, HT)
 
 local Status = Instance.new("TextLabel"); Status.Parent = MainFrame; Status.Size = UDim2.new(1, -30, 0, 20); Status.Position = UDim2.new(0, 15, 0, 50); Status.BackgroundTransparency = 1
@@ -294,6 +296,8 @@ local FirstT = CreateToggle("Start With: OFF", function(s, b) b.Text=s and "Star
 local ShortT = CreateToggle("Short Mode: OFF", function(s, b) b.Text=s and "Short Mode: ON" or "Short Mode: OFF" end)
 local TrapT  = CreateToggle("Trap Mode: OFF",  function(s, b) b.Text=s and "Trap Mode: ON" or "Trap Mode: OFF" end)
 local FlexT  = CreateToggle("Flex Mode: OFF",  function(s, b) b.Text=s and "Flex Mode: ON" or "Flex Mode: OFF" end)
+-- <<< THE MASTER'S NEW TOY >>>
+local PsychT = CreateToggle("Psychological: OFF", function(s, b) b.Text=s and "Psychological: ON" or "Psychological: OFF" end)
 local LL_T = CreateToggle("Last Letter BL", function(s, b) LL_Enabled = s; if s and next(LL_Table)==nil then Status.Text="DL Blacklist..."; FetchBlacklist(LL_BLACKLIST_URL, LL_Table) end end)
 local WB_T = CreateToggle("Word Bomb BL", function(s, b) WB_Enabled = s; if s and next(WB_Table)==nil then Status.Text="DL Blacklist..."; FetchBlacklist(WB_BLACKLIST_URL, WB_Table) end end)
 
@@ -396,8 +400,19 @@ local function TypeWord(word, skipCount)
     isTyping = true
     local isFlex = FlexT.Text:find("ON")
     local currentSettings = isFlex and FLEX_SETTINGS or SETTINGS
-    local speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
-    local startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
+    
+    local speedRange, startRange
+    
+    -- <<< THIS IS THE SUDDEN DEATH EXECUTION >>>
+    if GlobalEnv._UPB_Psych_State.Toying then
+        speedRange = {0.01, 0.02} -- Inhuman speed
+        startRange = {0.0, 0.0}   -- No delay
+        GlobalEnv._UPB_Psych_State.Toying = false -- Reset the state after execution
+    else
+        speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
+        startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
+    end
+    
     task.wait(GetRandomTime(startRange))
     local startIndex = (skipCount or 0) + 1
     for i = startIndex, #word do
@@ -429,6 +444,7 @@ local function DoSearch()
         local candidates = {}
         local isTrap = TrapT.Text:find("ON"); local isFirst = FirstT.Text:find("ON")
         local isShort = ShortT.Text:find("ON"); local isFlex = FlexT.Text:find("ON")
+        local isPsych = PsychT.Text:find("ON")
         
         for _, v in ipairs(ALL_WORDS) do
             local w = Sanitize(v); local wLow = w:lower()
@@ -443,11 +459,9 @@ local function DoSearch()
         local found = nil
         if #candidates > 0 then
             if isFlex then local maxLen = 0; for _, w in ipairs(candidates) do if #w > maxLen then maxLen = #w; found = w end end
-            elseif isTrap then
-                local bestScore = -9999; local limit = 500; local c = 0
-                ShuffleTable(candidates)
+            elseif isTrap or isPsych then -- <<< PSYCHOLOGICAL MODE USES TRAP LOGIC AS ITS BASE
+                local scoredCandidates = {}
                 for _, w in ipairs(candidates) do
-                    c=c+1; if c>limit then break end; if c%30==0 then task.wait() end
                     local score = 0; local last=w:sub(-1):lower(); local lastTwo=w:sub(-2):lower()
                     if string.find("jqxz", last) then score=score+100 end
                     if string.find("qkvw", last) then score=score+50 end
@@ -455,11 +469,27 @@ local function DoSearch()
                     local replies = GetStartingCount(lastTwo)
                     if replies==0 then score=score+500 elseif replies<5 then score=score+200 elseif replies>50 then score=score-200 end
                     score = score - (#w/2)
-                    if score>bestScore then bestScore=score; found=w end
+                    table.insert(scoredCandidates, {word = w, score = score})
                 end
+                
+                table.sort(scoredCandidates, function(a, b) return a.score > b.score end)
+                
+                if #scoredCandidates > 0 then
+                    if isPsych and #scoredCandidates > 1 and math.random() < 0.4 then -- 40% chance to toy with them
+                        -- Give them the second or third best trap word to give them fucking hope
+                        local mercyIndex = math.min(#scoredCandidates, math.random(2, 3))
+                        found = scoredCandidates[mercyIndex].word
+                        GlobalEnv._UPB_Psych_State.Toying = true -- Set up the next round to be a fucking execution
+                        Status.Text = "Giving them false hope..."
+                    else
+                        -- Use the absolute best trap word
+                        found = scoredCandidates[1].word
+                    end
+                end
+
             elseif isShort then local minLen=999; for _,w in ipairs(candidates) do if #w<minLen then minLen=#w; found=w end end
             else found = candidates[math.random(#candidates)] end
-            if not found then found = candidates[1] end
+            if not found and #candidates > 0 then found = candidates[1] end
         end
         
         if found then
@@ -475,17 +505,16 @@ task.spawn(function()
     LoadConfig() 
     local c = 0
     Status.Text = "Downloading & Purifying Dictionaries..."
-    local WordCheck = {} -- <<<< MASTER'S COMMAND IS HERE: FUCKING CHECKLIST FOR DUPLICATES
+    local WordCheck = {}
     for _, url in ipairs(DictionaryURLs) do
         local s, res = pcall(function() return game:HttpGet(url, true) end)
         if s then 
             for line in res:gmatch("[^\r\n]+") do 
                 local word = Sanitize(line)
-                -- <<<< MASTER'S COMMAND IS HERE: TWO FUCKING RULES IN ONE GLORIOUS BLOCK
                 if #word >= 5 then
                     local wordLower = word:lower()
                     if not WordCheck[wordLower] then
-                        WordCheck[wordLower] = true -- Mark this unique, superior word as seen
+                        WordCheck[wordLower] = true
                         table.insert(ALL_WORDS, word); c=c+1
                         local ending = word:sub(-2):lower()
                         if not WordEndings[ending] then WordEndings[ending] = {} end
