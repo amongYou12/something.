@@ -1,13 +1,13 @@
 --[[
-    UNPATCHABOMB [v1035 - MANUAL OVERRIDE]
+    UNPATCHABOMB [v1035 - MANUAL OVERRIDE - TH3-GPT FIXED]
     - PERSISTENCE: Replaced file saving with a MANUAL COPY/PASTE system.
     - COPY BUTTON: Copies your current settings to clipboard. Save this string in a text file on your PC.
     - LOAD BUTTON: Paste the string into the box and click LOAD.
-    - VISUAL FIX: The sliders WILL animate and update to the loaded values instantly.
+    - VISUAL FIX: The sliders WILL animate and update to the loaded values instantly (Fixed by TH3-GPT).
     - CORE: Anti-Freeze, Trap Mode (Psychological), and Clean UI preserved.
 ]]--
 
-local SCRIPT_VERSION = "v1035_ManualOverride"
+local SCRIPT_VERSION = "v1035_ManualOverride_Fixed"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -184,29 +184,64 @@ end)
 
 LoadConfigBtn.MouseButton1Click:Connect(function()
     local str = DataInput.Text
+    -- Sting AI: Wrapped in pcall for safety against malformed user input
     local s, data = pcall(HttpService.JSONDecode, HttpService, str)
     
     if s and type(data) == "table" then
-        if data.N then for k,v in pairs(data.N) do SETTINGS[k] = v end end
-        if data.F then for k,v in pairs(data.F) do FLEX_SETTINGS[k] = v end end
+        -- 1. Update the Internal Logic Tables (Silent Update)
+        if data.N then 
+            for k, v in pairs(data.N) do 
+                if SETTINGS[k] ~= nil then SETTINGS[k] = v end 
+            end 
+        end
+        if data.F then 
+            for k, v in pairs(data.F) do 
+                if FLEX_SETTINGS[k] ~= nil then FLEX_SETTINGS[k] = v end 
+            end 
+        end
         
-        -- FORCE VISUAL UPDATE
-        for name, updateFunc in pairs(AllSliders) do
-            local category, key = string.match(name, "(.+) (.+)")
-            local settingsTable = (category == "FLEX" and FLEX_SETTINGS or SETTINGS)
-            local settingsKey = string.gsub(key, " ", "_")
-            if settingsTable[settingsKey] then 
-                updateFunc(settingsTable[settingsKey]) 
+        -- 2. Construct Explicit Map for Visual Synchronization (The Fix)
+        -- Sting AI: This maps the UI "Title" -> {TableSource, TableKey}
+        local SliderMap = {
+            ["MIN SPEED"]         = {SETTINGS, "Speed_Min"},
+            ["SPEED VAR"]         = {SETTINGS, "Speed_Var"},
+            ["START DELAY"]       = {SETTINGS, "Start_Min"},
+            ["DELAY VAR"]         = {SETTINGS, "Start_Var"},
+            ["HESIT CHANCE"]      = {SETTINGS, "Hesit_Chance"},
+            ["HESIT VAR"]         = {SETTINGS, "Hesit_Val_Var"},
+            
+            ["FLEX MIN SPEED"]    = {FLEX_SETTINGS, "Speed_Min"},
+            ["FLEX SPEED VAR"]    = {FLEX_SETTINGS, "Speed_Var"},
+            ["FLEX START DELAY"]  = {FLEX_SETTINGS, "Start_Min"},
+            ["FLEX DELAY VAR"]    = {FLEX_SETTINGS, "Start_Var"},
+            ["FLEX HESIT CHANCE"] = {FLEX_SETTINGS, "Hesit_Chance"},
+            ["FLEX HESIT VAR"]    = {FLEX_SETTINGS, "Hesit_Val_Var"},
+            ["FLEX TYPO CHANCE"]  = {FLEX_SETTINGS, "Flex_Typo"},
+            ["FLEX BURST CHANCE"] = {FLEX_SETTINGS, "Flex_Burst"}
+        }
+
+        -- 3. Execute Visual Updates
+        -- Sting AI: Iterate through the captured update closures in 'AllSliders'
+        for name, updateVisualFunc in pairs(AllSliders) do
+            local mapData = SliderMap[name]
+            if mapData then
+                local targetTable = mapData[1]
+                local targetKey = mapData[2]
+                
+                -- Verify key existence to prevent nil errors
+                if targetTable and targetTable[targetKey] ~= nil then
+                    updateVisualFunc(targetTable[targetKey])
+                end
             end
         end
-        Status.Text="CONFIG IMPORTED SUCCESSFULLY."
-        Status.TextColor3=Colors.Success
+
+        Status.Text = "CONFIG IMPORTED & SYNCED."
+        Status.TextColor3 = Colors.Success
     else
-        Status.Text="INVALID CONFIG STRING."
-        Status.TextColor3=Colors.Fatal
+        Status.Text = "FATAL: INVALID CONFIG STRING."
+        Status.TextColor3 = Colors.Fatal
     end
 end)
-
 --------------------------------------------------------------------------------
 -- 5. CHAOS ENGINE
 --------------------------------------------------------------------------------
