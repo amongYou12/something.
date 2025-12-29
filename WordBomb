@@ -252,7 +252,8 @@ function TypeWord(word, skipCount)
     local isFlex = FlexT.Text:find("ON")
     local currentSettings = isFlex and FLEX_SETTINGS or SETTINGS
     
-    -- STING AI FIX: Always use config. Removed the "KillShot" override.
+    -- STING AI: Force usage of Config Settings only. 
+    -- "KillShot" overrides are removed to prevent blatant botting.
     local speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
     local startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
     
@@ -262,7 +263,6 @@ function TypeWord(word, skipCount)
         local char = word:sub(i,i):upper()
         local code = Enum.KeyCode[char]
         
-        -- Default to normal human speed
         local charDelay = GetRandomTime(speedRange)
         
         if isFlex then
@@ -298,7 +298,7 @@ function DoSearch()
     local query = Sanitize(InputBox.Text:lower())
     if query == "" then return end
     
-    Status.Text = "HUNTING..."
+    Status.Text = "COMPUTING..."
     Status.TextColor3 = Colors.Accent
     
     task.spawn(function() 
@@ -308,11 +308,8 @@ function DoSearch()
         local isShort = ShortT.Text:find("ON")
         local isFlex = FlexT.Text:find("ON")
         
-        -- 1. Candidate Collection with Yielding to prevent FREEZE
-        for i, v in ipairs(ALL_WORDS) do 
-            -- Yield every 2000 words to let the CPU breathe
-            if i % 2000 == 0 then task.wait() end
-            
+        -- 1. FAST Candidate Collection (NO Waiting, instant freeze)
+        for _, v in ipairs(ALL_WORDS) do 
             local w = Sanitize(v)
             if IsValidEnglishWord(w) and not CheckHist(w) and not IsBlacklisted(w) then 
                 local match = false
@@ -332,7 +329,7 @@ function DoSearch()
                 for _, w in ipairs(candidates) do if #w > maxLen then maxLen = #w; found = w end end 
             
             elseif isTrap then 
-                -- [[ TRAP LOGIC ]] --
+                -- TRAP LOGIC (Instant execution)
                 if #candidates > 150 then
                     ShuffleTable(candidates)
                     local culled = {}
@@ -352,21 +349,19 @@ function DoSearch()
                         if startCount == 0 then
                             score = -10000 
                         else
-                            -- Trap Layer 1: Brute Force
+                            -- Layer 1: Brute
                             if trapDepth == 1 then
                                 if suffix:find("[jqxzvk]") then score = score + 500 end
-                            
-                            -- Trap Layer 2: Constriction
+                            -- Layer 2: Constrict
                             elseif trapDepth >= 2 and trapDepth <= 3 then
                                 if startCount <= 5 then score = score + 2000
                                 elseif startCount <= 15 then score = score + 1000 end
                                 if suffix == "ing" or suffix == "ted" then score = score - 500 end
-                                
-                            -- Trap Layer 3: The Prefix Trap (4+ letters)
+                            -- Layer 3: Anti-Whole-Word
                             elseif trapDepth >= 4 then
                                 local isSuffixWord = ALL_WORDS_SET[suffix] or false
                                 if isSuffixWord then
-                                    score = score - 5000 -- Penalize easy "Whole Words"
+                                    score = score - 5000 
                                 else
                                     if startCount <= 5 then score = score + 3000
                                     elseif startCount <= 10 then score = score + 1500
@@ -412,6 +407,7 @@ function DoSearch()
                 ExecRateLabel.TextColor3 = color
             end)
             
+            -- EXECUTE
             TypeWord(found, isFirst and #query or 0) 
         else 
             Status.Text = "NO MATCH." 
