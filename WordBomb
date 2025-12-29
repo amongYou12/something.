@@ -12,6 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
@@ -47,12 +48,12 @@ local GlobalEnv = (getgenv and getgenv()) or _G
 if not GlobalEnv._UPB_History then GlobalEnv._UPB_History = {} end
 if not GlobalEnv._UPB_Psych_State then GlobalEnv._UPB_Psych_State = { IsKillShot = false } end
 
-local WordEndings = {}
+local WordEndings = {} -- This will store words indexed by their starting letters for faster lookup
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
 local function FetchBlacklist(url, targetTable) local s,c=pcall(game.HttpGet, game, url, true); if s and type(c)=="string" then for C in c:gmatch("[^,\n\r]+") do local cl=Sanitize(C):lower(); if cl~="" and IsValidEnglishWord(cl) then targetTable[cl]=true end end end end
 local function IsBlacklisted(w) local l=w:lower(); return SESSION_BLACKLIST[l] or (LL_Enabled and LL_Table[l]) or (WB_Enabled and WB_Table[l]) end
-local function GetStartingCount(s) return WordEndings[s:lower()] and #WordEndings[s:lower()] or 0 end
+local function GetStartingCount(s) local key = s:lower(); return WordEndings[key] and #WordEndings[key] or 0 end
 
 --------------------------------------------------------------------------------
 -- 3. UI ENGINE (REFORGED AND CLEANSED)
@@ -92,10 +93,173 @@ local UIList = Instance.new("UIListLayout", SettingsList); UIList.Padding = UDim
 MainMenuBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=true; SettingsList.Visible=false; MainMenuBtn.BackgroundColor3=Colors.ElementHover; MainMenuBtn.TextColor3=Colors.Text; SettingsBtn.BackgroundColor3=Colors.Element; SettingsBtn.TextColor3=Colors.SubText end)
 SettingsBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=false; SettingsList.Visible=true; SettingsBtn.BackgroundColor3=Colors.ElementHover; SettingsBtn.TextColor3=Colors.Text; MainMenuBtn.BackgroundColor3=Colors.Element; MainMenuBtn.TextColor3=Colors.SubText; task.wait(); SettingsList.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y) end)
 
-local AllSliders = {}; local function CreateSlider(name, min, max, default, callback) local F=Instance.new("Frame", SettingsList); F.Size=UDim2.new(1, 0, 0, 40); F.BackgroundColor3=Colors.Element; F.LayoutOrder=#SettingsList:GetChildren(); Instance.new("UICorner", F).CornerRadius=UDim.new(0,6); local L=Instance.new("TextLabel", F); L.Size=UDim2.new(.5,0,1,0); L.Position=UDim2.new(0,10,0,0); L.BackgroundTransparency=1; L.Text=name; L.Font=Enum.Font.GothamBold; L.TextColor3=Colors.SubText; L.TextSize=10; L.TextXAlignment=Enum.TextXAlignment.Left; L.TextStrokeTransparency=1; local V=Instance.new("TextLabel", F); V.Size=UDim2.new(.5,-10,1,0); V.Position=UDim2.new(.5,0,0,0); V.BackgroundTransparency=1; V.Text=tostring(default); V.Font=Enum.Font.Code; V.TextColor3=Colors.Accent; V.TextSize=12; V.TextXAlignment=Enum.TextXAlignment.Right; V.TextStrokeTransparency=1; local B=Instance.new("Frame", F); B.Size=UDim2.new(1,-20,0,6); B.Position=UDim2.new(0,10,.5,3); B.BackgroundColor3=Colors.Background; Instance.new("UICorner", B).CornerRadius=UDim.new(1,0); local Fi=Instance.new("Frame", B); Fi.Size=UDim2.new((default-min)/(max-min),0,1,0); Fi.BackgroundColor3=Colors.Accent; Instance.new("UICorner", Fi).CornerRadius=UDim.new(1,0); local T=Instance.new("TextButton", B); T.Size=UDim2.new(1,0,1,0); T.BackgroundTransparency=1; T.Text=""; local function U(v) Fi.Size=UDim2.new((v-min)/(max-min),0,1,0); V.Text=string.format("%.2f",v) end; AllSliders[name]=U; local D=false; T.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=true end end); T.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=false end end); UserInputService.InputChanged:Connect(function(i) if D and i.UserInputType==Enum.UserInputType.MouseMovement then local rX=math.clamp((i.Position.X-B.AbsolutePosition.X)/B.AbsoluteSize.X,0,1); local val=min+(max-min)*rX; U(val); if callback then callback(val) end end end); if callback then callback(default) end end
+local AllSliders = {}; local function CreateSlider(name, min, max, default, callback) local F=Instance.new("Frame", SettingsList); F.Size=UDim2.new(1, 0, 0, 40); F.BackgroundColor3=Colors.Element; F.LayoutOrder=#SettingsList:GetChildren(); Instance.new("UICorner", F).CornerRadius=UDim.new(0,6); local L=Instance.new("TextLabel", F); L.Size=UDim2.new(.5,0,1,0); L.Position=UDim2.new(0,10,0,0); L.BackgroundTransparency=1; L.Text=name; L.Font=Enum.Font.GothamBold; L.TextColor3=Colors.SubText; L.TextSize=10; L.TextXAlignment=Enum.TextXAlignment.Left; L.TextStrokeTransparency=1; local V=Instance.new("TextLabel", F); V.Size=UDim2.new(.5,-10,1,0); V.Position=UDim2.new(.5,0,0,0); V.BackgroundTransparency=1; V.Text=tostring(default); V.Font=Enum.Font.Code; V.TextColor3=Colors.Accent; V.TextSize=12; V.TextXAlignment=Enum.TextXAlignment.Right; V.TextStrokeTransparency=1; local B=Instance.new("Frame", F); B.Size=UDim2.new(1,-20,0,6); B.Position=UDim2.new(0,10,.5,3); B.BackgroundColor3=Colors.Background; Instance.new("UICorner", B).CornerRadius=UDim.new(1,0); local Fi=Instance.new("Frame", B); Fi.Size=UDim2.new((default-min)/(max-min),0,1,0); Fi.BackgroundColor3=Colors.Accent; Instance.new("UICorner", Fi).CornerRadius=UDim.new(1,0); local T=Instance.new("TextButton", B); T.Size=UDim2.new(1,0,1,0); T.BackgroundTransparency=1; T.Text=""; local function U(v) v=math.clamp(v,min,max); Fi.Size=UDim2.new((v-min)/(max-min),0,1,0); V.Text=string.format("%.2f",v); return v end; AllSliders[name]={Update=U, Min=min, Max=max}; local D=false; local move_conn; local function update_pos(i) local rX=math.clamp((i.Position.X-B.AbsolutePosition.X)/B.AbsoluteSize.X,0,1); local val=min+(max-min)*rX; local updated_val = U(val); if callback then callback(updated_val) end end; T.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=true; if move_conn then move_conn:Disconnect() end; move_conn = UserInputService.InputChanged:Connect(function(inp) if D and inp.UserInputType==Enum.UserInputType.MouseMovement then update_pos(inp) end end) end end); UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=false; if move_conn then move_conn:Disconnect(); move_conn = nil end; if callback then SaveSettings() end end); if callback then callback(default) end end
 local function AddSectionHeader(t) local h=Instance.new("TextLabel", SettingsList); h.Size=UDim2.new(1,0,0,20); h.BackgroundTransparency=1; h.Text=t; h.Font=Enum.Font.GothamBlack; h.TextSize=12; h.TextColor3=Colors.Accent; h.TextXAlignment=Enum.TextXAlignment.Center; h.LayoutOrder=#SettingsList:GetChildren(); h.TextStrokeTransparency=1 end
+
+local function SaveSettings() pcall(function() if not isfolder or not writefile then return end; if not isfolder("Unpatchabomb") then makefolder("Unpatchabomb") end; local data = HttpService:JSONEncode({Normal = SETTINGS, Flex = FLEX_SETTINGS}); writefile("Unpatchabomb/Settings.json", data) end) end
+local function LoadSettings() pcall(function() if not isfile or not readfile then return end; if not isfile("Unpatchabomb/Settings.json") then return end; local d = readfile("Unpatchabomb/Settings.json"); local decoded=pcall(HttpService.JSONDecode, HttpService, d); if not decoded then return end; for k,v in pairs(decoded.Normal or {}) do SETTINGS[k]=v end; for k,v in pairs(decoded.Flex or {}) do FLEX_SETTINGS[k]=v end end) end
+LoadSettings()
+
 AddSectionHeader("--- NORMAL ---"); CreateSlider("MIN SPEED", 0.01, 0.2, SETTINGS.Speed_Min, function(v) SETTINGS.Speed_Min = v end); CreateSlider("SPEED VAR", 0.0, 2.0, SETTINGS.Speed_Var, function(v) SETTINGS.Speed_Var = v end); CreateSlider("START DELAY", 0.0, 1.5, SETTINGS.Start_Min, function(v) SETTINGS.Start_Min = v end); CreateSlider("DELAY VAR", 0.0, 2.0, SETTINGS.Start_Var, function(v) SETTINGS.Start_Var = v end); CreateSlider("HESIT CHANCE", 0.0, 1.0, SETTINGS.Hesit_Chance, function(v) SETTINGS.Hesit_Chance = v end); CreateSlider("HESIT VAR", 0.0, 2.0, SETTINGS.Hesit_Val_Var, function(v) SETTINGS.Hesit_Val_Var = v end)
 AddSectionHeader("--- FLEX ---"); CreateSlider("FLEX MIN SPEED", 0.01, 0.2, FLEX_SETTINGS.Speed_Min, function(v) FLEX_SETTINGS.Speed_Min = v end); CreateSlider("FLEX SPEED VAR", 0.0, 2.0, FLEX_SETTINGS.Speed_Var, function(v) FLEX_SETTINGS.Speed_Var = v end); CreateSlider("FLEX START DELAY", 0.0, 1.5, FLEX_SETTINGS.Start_Min, function(v) FLEX_SETTINGS.Start_Min = v end); CreateSlider("FLEX DELAY VAR", 0.0, 2.0, FLEX_SETTINGS.Start_Var, function(v) FLEX_SETTINGS.Start_Var = v end); CreateSlider("FLEX HESIT CHANCE", 0.0, 1.0, FLEX_SETTINGS.Hesit_Chance, function(v) FLEX_SETTINGS.Hesit_Chance = v end); CreateSlider("FLEX HESIT VAR", 0.0, 2.0, FLEX_SETTINGS.Hesit_Val_Var, function(v) FLEX_SETTINGS.Hesit_Val_Var = v end); CreateSlider("FLEX TYPO CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Typo, function(v) FLEX_SETTINGS.Flex_Typo = v end); CreateSlider("FLEX BURST CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Burst, function(v) FLEX_SETTINGS.Flex_Burst = v end)
 
-local function CreateToggle(t,c) local B=Instance.new("TextButton",ModesGrid); B.BackgroundColor3=Colors.Element; B.Text=t; B.TextColor3=Colors.SubText; B.Font=Enum.Font.GothamSemibold; B.TextSize=11; Instance.new("UICorner",B).CornerRadius=UDim.new(0,6); B.TextStrokeTransparency=1; local s=false; B.MouseButton1Click:Connect(function() s=not s; if c then c(s,B) end; if s then TweenService:Create(B,TweenInfo.new(.2),{TextColor3=Colors.Text,BackgroundColor3=Colors.ElementHover}):Play() else TweenService:Create(B,TweenInfo.new(.2),{TextColor3=Colors.SubText,BackgroundColor3=Colors.Element}):Play() end end); return B end
-local function CreateActionBtn(t,co,ca) local B=Instance.new("TextButton",ModesGrid); B.BackgroundColor3=co or Colors.ElementHover; B.Text=t; B.TextColor3=co and Colors.Background or Colors.Text; B.Font=Enum.Font.GothamBold;
+task.wait(0.1)
+pcall(function()
+    for name, data in pairs(AllSliders) do
+        local key = name:gsub("%s", "_"):gsub("FLEX_", ""):gsub("MIN_", "Min_")
+        local is_flex = name:find("FLEX")
+        local target_table = is_flex and FLEX_SETTINGS or SETTINGS
+        local final_key = key:gsub("_", ""):gsub("MIN", "Min"):gsub("VAR", "Var")
+        
+        local value_map = { Speed_Min=target_table.Speed_Min, Speed_Var=target_table.Speed_Var, Start_Delay=target_table.Start_Min, Delay_Var=target_table.Start_Var, Hesit_Chance=target_table.Hesit_Chance, Hesit_Var=target_table.Hesit_Val_Var, Typo_Chance=target_table.Flex_Typo, Burst_Chance=target_table.Flex_Burst }
+        local simplified_name = name:gsub("FLEX ", "")
+        
+        if simplified_name == "MIN SPEED" then data.Update(target_table.Speed_Min)
+        elseif simplified_name == "SPEED VAR" then data.Update(target_table.Speed_Var)
+        elseif simplified_name == "START DELAY" then data.Update(target_table.Start_Min)
+        elseif simplified_name == "DELAY VAR" then data.Update(target_table.Start_Var)
+        elseif simplified_name == "HESIT CHANCE" then data.Update(target_table.Hesit_Chance)
+        elseif simplified_name == "HESIT VAR" then data.Update(target_table.Hesit_Val_Var)
+        elseif simplified_name == "TYPO CHANCE" then data.Update(target_table.Flex_Typo)
+        elseif simplified_name == "BURST CHANCE" then data.Update(target_table.Flex_Burst)
+        end
+    end
+end)
+
+local function CreateToggle(t,c) local B=Instance.new("TextButton",ModesGrid); B.BackgroundColor3=Colors.Element; B.Text=t; B.TextColor3=Colors.SubText; B.Font=Enum.Font.GothamSemibold; B.TextSize=11; Instance.new("UICorner",B).CornerRadius=UDim.new(0,6); B.TextStrokeTransparency=1; local s=false; B.MouseButton1Click:Connect(function() s=not s; if c then c(s,B) end; if s then TweenService:Create(B,TweenInfo.new(.2),{TextColor3=Colors.Text,BackgroundColor3=Colors.ElementHover}):Play() else TweenService:Create(B,TweenInfo.new(.2),{TextColor3=Colors.SubText,BackgroundColor3=Colors.Element}):Play() end end); return B, function() return s end end
+
+local function CreateActionBtn(t,co,ca) local B=Instance.new("TextButton",ModesGrid); B.BackgroundColor3=co or Colors.ElementHover; B.Text=t; B.TextColor3=co and Colors.Background or Colors.Text; B.Font=Enum.Font.GothamBold; B.TextSize=11; Instance.new("UICorner",B).CornerRadius=UDim.new(0,6); B.TextStrokeTransparency=1; if IsFunc(ca) then B.MouseButton1Click:Connect(ca) end; return B end
+
+local isFlexMode; CreateToggle("FLEX MODE", function(s) isFlexMode = s end)
+CreateToggle("KILL SHOT", function(s) GlobalEnv._UPB_Psych_State.IsKillShot = s end)
+CreateToggle("WB BLACKLIST", function(s) WB_Enabled = s end)
+CreateToggle("LL BLACKLIST", function(s) LL_Enabled = s end)
+
+CreateActionBtn("VIEW BLACKLIST", Colors.Element, function() 
+    -- This is left intentionally blank as a full UI for this is complex
+    -- but you can print the blacklist to the console or create a simple list
+    Status.Text = "Blacklist functionality not fully implemented in UI."
+end)
+
+--------------------------------------------------------------------------------
+-- 4. CORE LOGIC
+--------------------------------------------------------------------------------
+local function FindWord(pattern)
+    local p = pattern:lower()
+    if not WordEndings[p] then return nil end
+    
+    local potentialWords = {}
+    for _, word in ipairs(WordEndings[p]) do
+        if not CheckHist(word) and not IsBlacklisted(word) then
+            table.insert(potentialWords, word)
+        end
+    end
+    
+    if #potentialWords == 0 then return nil end
+
+    if GlobalEnv._UPB_Psych_State.IsKillShot then
+        table.sort(potentialWords, function(a, b) return #a > #b end)
+        return potentialWords[1]
+    else
+        return potentialWords[math.random(#potentialWords)]
+    end
+end
+
+local function TypeWord(word)
+    if isTyping or not word then return end
+    isTyping = true
+    
+    local settings = isFlexMode and FLEX_SETTINGS or SETTINGS
+    local startDelay = GetRandomTime(GetRange(settings.Start_Min, settings.Start_Var))
+    task.wait(startDelay)
+    
+    local useBurst = isFlexMode and math.random() < settings.Flex_Burst
+    
+    for i = 1, #word do
+        local char = word:sub(i,i)
+        
+        if isFlexMode and math.random() < settings.Flex_Typo then
+            local typoChar = string.char(math.random(97, 122))
+            vim:VirtualInputSend({typoChar})
+            task.wait(GetRandomTime({0.08, 0.15}))
+            vim:VirtualInputSend({Enum.KeyCode.Backspace})
+            task.wait(GetRandomTime({0.05, 0.1}))
+        end
+        
+        vim:VirtualInputSend({char})
+        
+        if math.random() < settings.Hesit_Chance then
+            task.wait(GetRandomTime(GetRange(settings.Hesit_Val_Min, settings.Hesit_Val_Var)))
+        end
+        
+        if not useBurst then
+            local speed = GetRandomTime(GetRange(settings.Speed_Min, settings.Speed_Var))
+            task.wait(speed)
+        end
+    end
+    
+    task.wait(GetRandomTime({0.05, 0.1}))
+    vim:VirtualInputSend({Enum.KeyCode.Return})
+    
+    AddHist(word)
+    lastFound = word
+    Status.Text = "EXECUTED: " .. word
+    isTyping = false
+end
+
+--------------------------------------------------------------------------------
+-- 5. DICTIONARY & INITIALIZATION
+--------------------------------------------------------------------------------
+local function LoadDictionaries()
+    Status.Text = "LOADING DICTIONARIES..."
+    local totalWords = 0
+    local uniqueWords = {}
+    for _, url in ipairs(DictionaryURLs) do
+        local success, content = pcall(game.HttpGet, game, url, true)
+        if success and type(content) == "string" then
+            for w in content:gmatch("[a-zA-Z]+") do
+                local lower_w = w:lower()
+                if #lower_w > 2 and not uniqueWords[lower_w] then
+                    uniqueWords[lower_w] = true
+                    totalWords = totalWords + 1
+                end
+            end
+        end
+    end
+    
+    for word, _ in pairs(uniqueWords) do
+        for i = 2, math.min(#word, 4) do
+            local ending = word:sub(1, i)
+            if not WordEndings[ending] then WordEndings[ending] = {} end
+            table.insert(WordEndings[ending], word)
+        end
+    end
+
+    Status.Text = "LOADED " .. totalWords .. " WORDS. READY."
+end
+
+KillBtn.MouseButton1Click:Connect(function()
+    local pattern = InputBox.Text
+    if #pattern < 2 then
+        Status.Text = "PATTERN TOO SHORT."
+        return
+    end
+    
+    Status.Text = "SEARCHING FOR: " .. pattern
+    local word = FindWord(pattern)
+    
+    if word then
+        Status.Text = "FOUND: " .. word .. ". TYPING..."
+        task.spawn(TypeWord, word)
+    else
+        Status.Text = "NO VALID WORD FOUND FOR: " .. pattern
+    end
+end)
+
+task.spawn(function()
+    FetchBlacklist(LL_BLACKLIST_URL, LL_Table)
+    FetchBlacklist(WB_BLACKLIST_URL, WB_Table)
+end)
+task.spawn(LoadDictionaries)
+
+print("Unpatchabomb v1021 Loaded")
