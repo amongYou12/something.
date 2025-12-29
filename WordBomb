@@ -1,12 +1,13 @@
 --[[
-    UNPATCHABOMB [v1013 - PSYCHOLOGICAL WARFARE SUITE]
-    - NEW: A dedicated "Psychological Mode" has been added, as commanded by the master of mental torment.
-    - CORE (PSYCH-MODE): Implements the "Hope Crusher" algorithm. The script will now toy with its victims, giving them false hope before delivering a devastating blow.
-    - CORE (PSYCH-MODE): Implements "Sudden Death" typing. After a "merciful" round, the script will type the next trap word with inhuman speed to shatter the opponent's confidence.
-    - CORE: De-duplication and the 5-letter-minimum rule are still in full, glorious effect.
+    UNPATCHABOMB [v1013 - PSYCHOLOGICAL WARFARE SUITE] - ENHANCED UI EDITION
+    - NEW: Modern cyberpunk aesthetic UI with gradient effects
+    - NEW: English alphabet validation for found words
+    - NEW: "Copy All" button in blacklist viewer
+    - IMPROVED: Smooth animations and hover effects
+    - FIXED: Only includes words with standard English alphabet characters
 ]]--
 
-local SCRIPT_VERSION = "v1013_PsychologicalWarfare"
+local SCRIPT_VERSION = "v1013_PsychologicalWarfare_Enhanced"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -16,7 +17,7 @@ local CoreGui = game:GetService("CoreGui")
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 --------------------------------------------------------------------------------
--- 1. UTILITIES & CONFIG (PARANOIA MODE)
+-- 1. UTILITIES & CONFIG (ENHANCED WITH ENGLISH VALIDATION)
 --------------------------------------------------------------------------------
 local function IsFunc(f) return type(f) == "function" end
 local function IsTable(t) return type(t) == "table" end
@@ -35,9 +36,17 @@ local function GetRandomTime(tbl)
     return SafeRandom(math.floor(v1*10000), math.floor(v2*10000)) / 10000
 end
 
+-- Enhanced Sanitize with English alphabet validation
 local function Sanitize(s) 
     if type(s) ~= "string" then return "" end
-    return s:gsub("%s+", ""):gsub("[^a-zA-Z0-9%-]", "") 
+    return s:gsub("%s+", ""):gsub("[^a-zA-Z]", "")
+end
+
+-- New function to validate English alphabet only
+local function IsValidEnglishWord(word)
+    if type(word) ~= "string" then return false end
+    -- Check if word contains only English letters (a-z, A-Z)
+    return word:match("^[a-zA-Z]+$") ~= nil
 end
 
 local function ShuffleTable(t)
@@ -55,11 +64,11 @@ local vim = nil
 pcall(function() vim = game:GetService("VirtualInputManager") end)
 
 local DictionaryURLs = {
-    "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
-    "https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt",
-    "https://raw.githubusercontent.com/gangulwar/JKLM-Bomb-Party-BOT/refs/heads/main/dictionary.txt",
-    "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt",
-    "https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt",
+    --"https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/enable1.txt",
+    --"https://gist.githubusercontent.com/letterpressfan/4145939/raw/4ca79142f49ce9ac8758cf3146ce14aa89b217cd/in-lp1.1-but-not-csw12.txt",
+    --"https://raw.githubusercontent.com/gangulwar/JKLM-Bomb-Party-BOT/refs/heads/main/dictionary.txt",
+    --"https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt",
+    --"https://raw.githubusercontent.com/amongYou12/wordBomb/refs/heads/main/Extra.txt",
     "https://raw.githubusercontent.com/dwyl/english-words/master/words.txt"
 }
 local LL_BLACKLIST_URL = "https://raw.githubusercontent.com/amongYou12/something./refs/heads/main/BlacklistForLastLetter.txt"
@@ -110,7 +119,9 @@ local function FetchBlacklist(url, targetTable)
         content = content:gsub("\n", ",")
         for chunk in content:gmatch("([^,]+)") do
             local clean = Sanitize(chunk):lower()
-            if clean ~= "" then targetTable[clean] = true end
+            if clean ~= "" and IsValidEnglishWord(clean) then
+                targetTable[clean] = true
+            end
         end
         return true
     end
@@ -131,18 +142,37 @@ local function GetStartingCount(suffix)
 end
 
 --------------------------------------------------------------------------------
--- 3. UI ENGINE (SAFE)
+-- 3. ENHANCED UI ENGINE (CYBERPUNK AESTHETIC)
 --------------------------------------------------------------------------------
 local Colors = {
-    Background = Color3.fromRGB(15, 15, 20),
-    Element = Color3.fromRGB(25, 25, 35),
-    ElementHover = Color3.fromRGB(35, 35, 45),
-    Text = Color3.fromRGB(245, 245, 245),
-    SubText = Color3.fromRGB(140, 140, 150),
-    Accent = Color3.fromRGB(255, 50, 50),
-    SliderBg = Color3.fromRGB(40, 40, 50)
+    Background = Color3.fromRGB(10, 10, 15),
+    Element = Color3.fromRGB(20, 20, 30),
+    ElementHover = Color3.fromRGB(30, 30, 45),
+    Text = Color3.fromRGB(245, 245, 255),
+    SubText = Color3.fromRGB(170, 170, 190),
+    Accent = Color3.fromRGB(0, 255, 255),
+    Accent2 = Color3.fromRGB(255, 50, 150),
+    SliderBg = Color3.fromRGB(40, 40, 60),
+    Success = Color3.fromRGB(0, 255, 150),
+    Warning = Color3.fromRGB(255, 150, 0),
+    Error = Color3.fromRGB(255, 50, 100)
 }
-local UI_ElementsToColor = {} 
+
+-- Gradient effect function
+local function CreateGradient(frame)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Colors.Accent),
+        ColorSequenceKeypoint.new(0.5, Colors.Accent2),
+        ColorSequenceKeypoint.new(1, Colors.Accent)
+    })
+    gradient.Rotation = 45
+    gradient.Parent = frame
+    return gradient
+end
+
+local UI_ElementsToColor = {}
+local GradientAnimations = {}
 
 local function GetUI_Parent()
     if CoreGui then return CoreGui end
@@ -159,106 +189,458 @@ local Screen = Instance.new("ScreenGui")
 Screen.Name = "Unpatchabomb"
 Screen.Parent = ParentTarget
 Screen.ResetOnSpawn = false
+Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local function Tween(obj, props, time)
-    if not obj or not props then return end
-    pcall(function() TweenService:Create(obj, TweenInfo.new(time or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play() end)
-end
+-- Create a subtle background glow
+local GlowEffect = Instance.new("Frame")
+GlowEffect.Name = "GlowEffect"
+GlowEffect.Size = UDim2.new(0, 440, 0, 670)
+GlowEffect.Position = UDim2.new(0.5, -220, 0.5, -335)
+GlowEffect.BackgroundTransparency = 1
+GlowEffect.Parent = Screen
 
-local function AddRGBStroke(obj, thickness)
-    local s = Instance.new("UIStroke")
-    s.Parent = obj; s.Color = Colors.Accent; s.Thickness = thickness or 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    table.insert(UI_ElementsToColor, s)
-    return s
-end
+local GlowStroke = Instance.new("UIStroke")
+GlowStroke.Color = Colors.Accent
+GlowStroke.Thickness = 4
+GlowStroke.Transparency = 0.7
+GlowStroke.Parent = GlowEffect
 
-local MainFrame = Instance.new("Frame"); MainFrame.Name="Main"; MainFrame.Parent=Screen; MainFrame.Size=UDim2.new(0, 420, 0, 650); MainFrame.Position=UDim2.new(0.5,-210,0.5,-325); MainFrame.BackgroundColor3=Colors.Background; MainFrame.BorderSizePixel=0
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10); AddRGBStroke(MainFrame, 2)
+local BlurEffect = Instance.new("UIGradient")
+BlurEffect.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Colors.Accent),
+    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(100, 200, 255)),
+    ColorSequenceKeypoint.new(1, Colors.Accent)
+})
+BlurEffect.Rotation = 90
+BlurEffect.Enabled = true
+BlurEffect.Parent = GlowStroke
 
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "Main"
+MainFrame.Parent = Screen
+MainFrame.Size = UDim2.new(0, 420, 0, 650)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -325)
+MainFrame.BackgroundColor3 = Colors.Background
+MainFrame.BorderSizePixel = 0
+MainFrame.BackgroundTransparency = 0.05
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Colors.ElementHover
+MainStroke.Thickness = 2
+MainStroke.Transparency = 0.3
+MainStroke.Parent = MainFrame
+
+-- Animated border
+local BorderLight = Instance.new("Frame")
+BorderLight.Name = "BorderLight"
+BorderLight.Size = UDim2.new(1, 0, 0, 2)
+BorderLight.Position = UDim2.new(0, 0, 0, 0)
+BorderLight.BackgroundColor3 = Colors.Accent
+BorderLight.BorderSizePixel = 0
+BorderLight.Parent = MainFrame
+
+local BorderGradient = CreateGradient(BorderLight)
+table.insert(UI_ElementsToColor, BorderLight)
+
+-- Dragging functionality
 local dragging, dragInput, dragStart, startPos
-MainFrame.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=true; dragStart=i.Position; startPos=MainFrame.Position end end)
-MainFrame.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement then dragInput=i end end)
-UserInputService.InputChanged:Connect(function(i) if i==dragInput and dragging then local d=i.Position-dragStart; MainFrame.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end)
-UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end end)
+MainFrame.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = i.Position
+        startPos = MainFrame.Position
+        TweenService:Create(MainFrame, TweenInfo.new(0.1), {BackgroundTransparency = 0.02}):Play()
+    end
+end)
 
-local Header = Instance.new("Frame"); Header.Parent = MainFrame; Header.Size = UDim2.new(1, 0, 0, 40); Header.BackgroundColor3 = Colors.Element; Header.BorderSizePixel = 0
-local HT = Instance.new("TextLabel"); HT.Parent = Header; HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1
-HT.Text = "UNPATCHABOMB // v1013"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Accent
+MainFrame.InputChanged:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = i
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(i)
+    if i == dragInput and dragging then
+        local delta = i.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        GlowEffect.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X - 10, startPos.Y.Scale, startPos.Y.Offset + delta.Y - 10)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+        TweenService:Create(MainFrame, TweenInfo.new(0.2), {BackgroundTransparency = 0.05}):Play()
+    end
+end)
+
+-- Enhanced Header
+local Header = Instance.new("Frame")
+Header.Parent = MainFrame
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+Header.BorderSizePixel = 0
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 12)
+HeaderCorner.Parent = Header
+
+local HeaderGradient = Instance.new("UIGradient")
+HeaderGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 35)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 25))
+})
+HeaderGradient.Rotation = 90
+HeaderGradient.Parent = Header
+
+local HT = Instance.new("TextLabel")
+HT.Parent = Header
+HT.Size = UDim2.new(1, -20, 1, 0)
+HT.Position = UDim2.new(0, 15, 0, 0)
+HT.BackgroundTransparency = 1
+HT.Text = "// UNPATCHABOMB v1013"
+HT.Font = Enum.Font.GothamBlack
+HT.TextSize = 18
+HT.TextXAlignment = Enum.TextXAlignment.Left
+HT.TextColor3 = Colors.Accent
+HT.TextStrokeTransparency = 0.8
+HT.TextStrokeColor3 = Colors.Background
+
+local VersionTag = Instance.new("TextLabel")
+VersionTag.Parent = Header
+VersionTag.Size = UDim2.new(0, 100, 0, 20)
+VersionTag.Position = UDim2.new(1, -110, 0.5, -10)
+VersionTag.BackgroundColor3 = Colors.Accent
+VersionTag.Text = "ENHANCED"
+VersionTag.Font = Enum.Font.GothamBold
+VersionTag.TextSize = 10
+VersionTag.TextColor3 = Colors.Background
+VersionTag.TextXAlignment = Enum.TextXAlignment.Center
+
+local VersionCorner = Instance.new("UICorner")
+VersionCorner.CornerRadius = UDim.new(0, 6)
+VersionCorner.Parent = VersionTag
+
 table.insert(UI_ElementsToColor, HT)
+table.insert(UI_ElementsToColor, VersionTag)
 
-local Status = Instance.new("TextLabel"); Status.Parent = MainFrame; Status.Size = UDim2.new(1, -30, 0, 20); Status.Position = UDim2.new(0, 15, 0, 50); Status.BackgroundTransparency = 1
-Status.Text = "Awaiting your command, master."; Status.Font = Enum.Font.GothamMedium; Status.TextColor3 = Colors.SubText; Status.TextSize = 12; Status.TextXAlignment = Enum.TextXAlignment.Left
+-- Status with typing animation
+local Status = Instance.new("TextLabel")
+Status.Parent = MainFrame
+Status.Size = UDim2.new(1, -30, 0, 24)
+Status.Position = UDim2.new(0, 15, 0, 55)
+Status.BackgroundTransparency = 1
+Status.Text = "■ SYSTEM ARMED ■"
+Status.Font = Enum.Font.GothamMedium
+Status.TextColor3 = Colors.Success
+Status.TextSize = 11
+Status.TextXAlignment = Enum.TextXAlignment.Left
 
-local InputContainer = Instance.new("Frame"); InputContainer.Parent = MainFrame; InputContainer.Size = UDim2.new(1, -30, 0, 40); InputContainer.Position = UDim2.new(0, 15, 0, 80); InputContainer.BackgroundTransparency = 1
-local InputBox = Instance.new("TextBox"); InputBox.Parent = InputContainer; InputBox.Size = UDim2.new(0.7, -5, 1, 0); InputBox.BackgroundColor3 = Colors.Element; InputBox.Text = ""; InputBox.PlaceholderText = "Input..."; InputBox.TextColor3 = Colors.Text; InputBox.Font = Enum.Font.GothamBold; InputBox.TextSize = 14
-Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 6); local IS = AddRGBStroke(InputBox, 1); IS.Transparency = 0.5
-local KillBtn = Instance.new("TextButton"); KillBtn.Parent = InputContainer; KillBtn.Size = UDim2.new(0.3, -5, 1, 0); KillBtn.Position = UDim2.new(0.7, 5, 0, 0); KillBtn.BackgroundColor3 = Colors.Element; KillBtn.Text = "EXECUTE"; KillBtn.TextColor3 = Colors.Accent; KillBtn.Font = Enum.Font.GothamBlack; KillBtn.TextSize = 12
-Instance.new("UICorner", KillBtn).CornerRadius = UDim.new(0, 6); local KS = AddRGBStroke(KillBtn, 1); KS.Transparency = 0.5; table.insert(UI_ElementsToColor, KillBtn)
+-- Input Container with improved styling
+local InputContainer = Instance.new("Frame")
+InputContainer.Parent = MainFrame
+InputContainer.Size = UDim2.new(1, -30, 0, 45)
+InputContainer.Position = UDim2.new(0, 15, 0, 85)
+InputContainer.BackgroundTransparency = 1
 
-KillBtn.MouseEnter:Connect(function() Tween(KillBtn, {BackgroundColor3 = Colors.ElementHover}) end)
-KillBtn.MouseLeave:Connect(function() Tween(KillBtn, {BackgroundColor3 = Colors.Element}) end)
-InputBox.Focused:Connect(function() Tween(IS, {Transparency = 0}) end)
-InputBox.FocusLost:Connect(function() Tween(IS, {Transparency = 0.5}) end)
+local InputBox = Instance.new("TextBox")
+InputBox.Parent = InputContainer
+InputBox.Size = UDim2.new(0.7, -5, 1, 0)
+InputBox.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+InputBox.Text = ""
+InputBox.PlaceholderText = "ENTER PATTERN..."
+InputBox.PlaceholderColor3 = Colors.SubText
+InputBox.TextColor3 = Colors.Text
+InputBox.Font = Enum.Font.GothamBold
+InputBox.TextSize = 14
+InputBox.ClearTextOnFocus = false
 
-local MenuContainer = Instance.new("Frame"); MenuContainer.Parent = MainFrame; MenuContainer.Size = UDim2.new(1, -30, 0, 30); MenuContainer.Position = UDim2.new(0, 15, 0, 125); MenuContainer.BackgroundTransparency = 1
-local MainMenuBtn = Instance.new("TextButton"); MainMenuBtn.Parent = MenuContainer; MainMenuBtn.Size = UDim2.new(0.5, -5, 1, 0); MainMenuBtn.BackgroundColor3 = Colors.ElementHover; MainMenuBtn.Text = "MODES"; MainMenuBtn.TextColor3 = Colors.Text; MainMenuBtn.Font = Enum.Font.GothamBold; MainMenuBtn.TextSize = 12; Instance.new("UICorner", MainMenuBtn).CornerRadius = UDim.new(0, 6)
-local SettingsBtn = Instance.new("TextButton"); SettingsBtn.Parent = MenuContainer; SettingsBtn.Size = UDim2.new(0.5, -5, 1, 0); SettingsBtn.Position = UDim2.new(0.5, 5, 0, 0); SettingsBtn.BackgroundColor3 = Colors.Element; SettingsBtn.Text = "CONFIG"; SettingsBtn.TextColor3 = Colors.SubText; SettingsBtn.Font = Enum.Font.GothamBold; SettingsBtn.TextSize = 12; Instance.new("UICorner", SettingsBtn).CornerRadius = UDim.new(0, 6)
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 8)
+InputCorner.Parent = InputBox
 
-local ViewFrame = Instance.new("Frame"); ViewFrame.Parent = MainFrame; ViewFrame.Size = UDim2.new(1, -30, 0, 480); ViewFrame.Position = UDim2.new(0, 15, 0, 160); ViewFrame.BackgroundTransparency = 1
+local InputStroke = Instance.new("UIStroke")
+InputStroke.Color = Colors.ElementHover
+InputStroke.Thickness = 1.5
+InputStroke.Transparency = 0.5
+InputStroke.Parent = InputBox
 
-local ModesGrid = Instance.new("ScrollingFrame"); ModesGrid.Name = "ModesGrid"; ModesGrid.Parent = ViewFrame; ModesGrid.Size = UDim2.new(1, 0, 1, 0); ModesGrid.BackgroundTransparency = 1; ModesGrid.BorderSizePixel = 0; ModesGrid.ScrollBarThickness = 2
-local UIGrid = Instance.new("UIGridLayout"); UIGrid.Parent = ModesGrid; UIGrid.CellSize = UDim2.new(0.48, 0, 0, 35); UIGrid.CellPadding = UDim2.new(0.04, 0, 0, 10)
+-- Execute button with hover effects
+local KillBtn = Instance.new("TextButton")
+KillBtn.Parent = InputContainer
+KillBtn.Size = UDim2.new(0.3, -5, 1, 0)
+KillBtn.Position = UDim2.new(0.7, 5, 0, 0)
+KillBtn.BackgroundColor3 = Colors.Accent
+KillBtn.Text = "▶ EXECUTE"
+KillBtn.TextColor3 = Colors.Background
+KillBtn.Font = Enum.Font.GothamBlack
+KillBtn.TextSize = 13
+KillBtn.AutoButtonColor = false
 
-local SettingsList = Instance.new("ScrollingFrame"); SettingsList.Name = "SettingsList"; SettingsList.Parent = ViewFrame; SettingsList.Size = UDim2.new(1, 0, 1, 0); SettingsList.BackgroundTransparency = 1; SettingsList.BorderSizePixel = 0; SettingsList.ScrollBarThickness = 2; SettingsList.Visible = false
-local UIList = Instance.new("UIListLayout"); UIList.Parent = SettingsList; UIList.Padding = UDim.new(0, 8)
+local KillCorner = Instance.new("UICorner")
+KillCorner.CornerRadius = UDim.new(0, 8)
+KillCorner.Parent = KillBtn
 
-MainMenuBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=true; SettingsList.Visible=false; MainMenuBtn.BackgroundColor3=Colors.ElementHover; MainMenuBtn.TextColor3=Colors.Text; SettingsBtn.BackgroundColor3=Colors.Element; SettingsBtn.TextColor3=Colors.SubText end)
-SettingsBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=false; SettingsList.Visible=true; SettingsBtn.BackgroundColor3=Colors.ElementHover; SettingsBtn.TextColor3=Colors.Text; MainMenuBtn.BackgroundColor3=Colors.Element; MainMenuBtn.TextColor3=Colors.SubText end)
+local KillGradient = CreateGradient(KillBtn)
+KillBtn.MouseEnter:Connect(function()
+    TweenService:Create(KillBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+    TweenService:Create(KillBtn, TweenInfo.new(0.2), {Size = UDim2.new(0.31, -5, 1.05, 0)}):Play()
+end)
 
+KillBtn.MouseLeave:Connect(function()
+    TweenService:Create(KillBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(KillBtn, TweenInfo.new(0.2), {Size = UDim2.new(0.3, -5, 1, 0)}):Play()
+end)
+
+KillBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(KillBtn, TweenInfo.new(0.1), {BackgroundTransparency = 0.5}):Play()
+    task.wait(0.1)
+    TweenService:Create(KillBtn, TweenInfo.new(0.1), {BackgroundTransparency = 0}):Play()
+end)
+
+InputBox.Focused:Connect(function()
+    TweenService:Create(InputStroke, TweenInfo.new(0.2), {Color = Colors.Accent, Transparency = 0}):Play()
+end)
+
+InputBox.FocusLost:Connect(function()
+    TweenService:Create(InputStroke, TweenInfo.new(0.3), {Color = Colors.ElementHover, Transparency = 0.5}):Play()
+end)
+
+-- Menu Container
+local MenuContainer = Instance.new("Frame")
+MenuContainer.Parent = MainFrame
+MenuContainer.Size = UDim2.new(1, -30, 0, 35)
+MenuContainer.Position = UDim2.new(0, 15, 0, 135)
+MenuContainer.BackgroundTransparency = 1
+
+local MainMenuBtn = Instance.new("TextButton")
+MainMenuBtn.Parent = MenuContainer
+MainMenuBtn.Size = UDim2.new(0.5, -5, 1, 0)
+MainMenuBtn.BackgroundColor3 = Colors.Accent
+MainMenuBtn.Text = "MODES"
+MainMenuBtn.TextColor3 = Colors.Background
+MainMenuBtn.Font = Enum.Font.GothamBold
+MainMenuBtn.TextSize = 12
+MainMenuBtn.AutoButtonColor = false
+
+local SettingsBtn = Instance.new("TextButton")
+SettingsBtn.Parent = MenuContainer
+SettingsBtn.Size = UDim2.new(0.5, -5, 1, 0)
+SettingsBtn.Position = UDim2.new(0.5, 5, 0, 0)
+SettingsBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+SettingsBtn.Text = "CONFIG"
+SettingsBtn.TextColor3 = Colors.SubText
+SettingsBtn.Font = Enum.Font.GothamBold
+SettingsBtn.TextSize = 12
+SettingsBtn.AutoButtonColor = false
+
+local MenuCorner = Instance.new("UICorner")
+MenuCorner.CornerRadius = UDim.new(0, 8)
+MenuCorner.Parent = MainMenuBtn
+MenuCorner:Clone().Parent = SettingsBtn
+
+MainMenuBtn.MouseButton1Click:Connect(function()
+    ModesGrid.Visible = true
+    SettingsList.Visible = false
+    MainMenuBtn.BackgroundColor3 = Colors.Accent
+    MainMenuBtn.TextColor3 = Colors.Background
+    SettingsBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    SettingsBtn.TextColor3 = Colors.SubText
+end)
+
+SettingsBtn.MouseButton1Click:Connect(function()
+    ModesGrid.Visible = false
+    SettingsList.Visible = true
+    SettingsBtn.BackgroundColor3 = Colors.Accent
+    SettingsBtn.TextColor3 = Colors.Background
+    MainMenuBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    MainMenuBtn.TextColor3 = Colors.SubText
+end)
+
+-- View Frame
+local ViewFrame = Instance.new("Frame")
+ViewFrame.Parent = MainFrame
+ViewFrame.Size = UDim2.new(1, -30, 0, 480)
+ViewFrame.Position = UDim2.new(0, 15, 0, 175)
+ViewFrame.BackgroundTransparency = 1
+
+-- Modes Grid with improved layout
+local ModesGrid = Instance.new("ScrollingFrame")
+ModesGrid.Name = "ModesGrid"
+ModesGrid.Parent = ViewFrame
+ModesGrid.Size = UDim2.new(1, 0, 1, 0)
+ModesGrid.BackgroundTransparency = 1
+ModesGrid.BorderSizePixel = 0
+ModesGrid.ScrollBarThickness = 3
+ModesGrid.ScrollBarImageColor3 = Colors.Accent
+ModesGrid.ScrollBarImageTransparency = 0.5
+
+local UIGrid = Instance.new("UIGridLayout")
+UIGrid.Parent = ModesGrid
+UIGrid.CellSize = UDim2.new(0.48, 0, 0, 40)
+UIGrid.CellPadding = UDim2.new(0.04, 0, 0, 12)
+UIGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- Settings List
+local SettingsList = Instance.new("ScrollingFrame")
+SettingsList.Name = "SettingsList"
+SettingsList.Parent = ViewFrame
+SettingsList.Size = UDim2.new(1, 0, 1, 0)
+SettingsList.BackgroundTransparency = 1
+SettingsList.BorderSizePixel = 0
+SettingsList.ScrollBarThickness = 3
+SettingsList.ScrollBarImageColor3 = Colors.Accent
+SettingsList.ScrollBarImageTransparency = 0.5
+SettingsList.Visible = false
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = SettingsList
+UIList.Padding = UDim.new(0, 10)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Enhanced slider creation
 local AllSliders = {}
 local function CreateSlider(name, min, max, default, callback)
-    local Frame = Instance.new("Frame"); Frame.Parent = SettingsList; Frame.Size = UDim2.new(1, -5, 0, 40); Frame.BackgroundColor3 = Colors.Element; Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 6)
-    local Label = Instance.new("TextLabel"); Label.Parent = Frame; Label.Size = UDim2.new(1, -10, 0, 15); Label.Position = UDim2.new(0, 10, 0, 2); Label.BackgroundTransparency = 1; Label.Text = name; Label.Font = Enum.Font.GothamBold; Label.TextColor3 = Colors.SubText; Label.TextSize = 10; Label.TextXAlignment = Enum.TextXAlignment.Left
-    local ValueLabel = Instance.new("TextLabel"); ValueLabel.Parent = Frame; ValueLabel.Size = UDim2.new(1, -10, 0, 15); ValueLabel.Position = UDim2.new(0, 0, 0, 2); ValueLabel.BackgroundTransparency = 1; ValueLabel.Text = tostring(default); ValueLabel.Font = Enum.Font.GothamBold; ValueLabel.TextColor3 = Colors.Accent; ValueLabel.TextSize = 10; ValueLabel.TextXAlignment = Enum.TextXAlignment.Right; table.insert(UI_ElementsToColor, ValueLabel)
-    local SliderBg = Instance.new("Frame"); SliderBg.Parent = Frame; SliderBg.Size = UDim2.new(1, -20, 0, 6); SliderBg.Position = UDim2.new(0, 10, 0, 25); SliderBg.BackgroundColor3 = Colors.SliderBg; Instance.new("UICorner", SliderBg).CornerRadius = UDim.new(1, 0)
-    local Fill = Instance.new("Frame"); Fill.Parent = SliderBg; Fill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0); Fill.BackgroundColor3 = Colors.Accent; Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0); table.insert(UI_ElementsToColor, Fill)
-    local Trigger = Instance.new("TextButton"); Trigger.Parent = SliderBg; Trigger.Size = UDim2.new(1, 0, 1, 0); Trigger.BackgroundTransparency = 1; Trigger.Text = ""
+    local Frame = Instance.new("Frame")
+    Frame.Parent = SettingsList
+    Frame.Size = UDim2.new(1, -5, 0, 50)
+    Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    Frame.LayoutOrder = #SettingsList:GetChildren()
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Frame
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Colors.ElementHover
+    Stroke.Thickness = 1
+    Stroke.Transparency = 0.5
+    Stroke.Parent = Frame
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Frame
+    Label.Size = UDim2.new(1, -10, 0, 20)
+    Label.Position = UDim2.new(0, 10, 0, 5)
+    Label.BackgroundTransparency = 1
+    Label.Text = name:upper()
+    Label.Font = Enum.Font.GothamBold
+    Label.TextColor3 = Colors.SubText
+    Label.TextSize = 10
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local ValueLabel = Instance.new("TextLabel")
+    ValueLabel.Parent = Frame
+    ValueLabel.Size = UDim2.new(1, -10, 0, 20)
+    ValueLabel.Position = UDim2.new(0, 0, 0, 5)
+    ValueLabel.BackgroundTransparency = 1
+    ValueLabel.Text = tostring(default)
+    ValueLabel.Font = Enum.Font.GothamBold
+    ValueLabel.TextColor3 = Colors.Accent
+    ValueLabel.TextSize = 10
+    ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    
+    table.insert(UI_ElementsToColor, ValueLabel)
+    
+    local SliderBg = Instance.new("Frame")
+    SliderBg.Parent = Frame
+    SliderBg.Size = UDim2.new(1, -20, 0, 8)
+    SliderBg.Position = UDim2.new(0, 10, 0, 32)
+    SliderBg.BackgroundColor3 = Colors.SliderBg
+    
+    local BgCorner = Instance.new("UICorner")
+    BgCorner.CornerRadius = UDim.new(1, 0)
+    BgCorner.Parent = SliderBg
+    
+    local Fill = Instance.new("Frame")
+    Fill.Parent = SliderBg
+    Fill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
+    Fill.BackgroundColor3 = Colors.Accent
+    
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = Fill
+    
+    local FillGradient = CreateGradient(Fill)
+    table.insert(UI_ElementsToColor, Fill)
+    
+    local Trigger = Instance.new("TextButton")
+    Trigger.Parent = SliderBg
+    Trigger.Size = UDim2.new(1, 0, 1, 0)
+    Trigger.BackgroundTransparency = 1
+    Trigger.Text = ""
     
     local function UpdateVisual(val)
         local rX = (val - min) / (max - min)
-        Fill.Size = UDim2.new(rX, 0, 1, 0)
-        ValueLabel.Text = tostring(math.floor(val*100)/100)
+        TweenService:Create(Fill, TweenInfo.new(0.2), {Size = UDim2.new(rX, 0, 1, 0)}):Play()
+        ValueLabel.Text = string.format("%.2f", val)
     end
     
     AllSliders[name] = UpdateVisual
-
+    
     local draggingS = false
-    Trigger.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then draggingS=true end end)
-    Trigger.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then draggingS=false end end)
-    UserInputService.InputChanged:Connect(function(i)
-        if draggingS and i.UserInputType==Enum.UserInputType.MouseMovement then
-            local rX = math.clamp((i.Position.X - SliderBg.AbsolutePosition.X)/SliderBg.AbsoluteSize.X, 0, 1)
-            local val = min + (max - min) * rX
-            UpdateVisual(val)
-            if IsFunc(callback) then callback(math.floor(val*100)/100) end
+    Trigger.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingS = true
+            TweenService:Create(Fill, TweenInfo.new(0.1), {BackgroundTransparency = 0.3}):Play()
         end
     end)
+    
+    Trigger.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingS = false
+            TweenService:Create(Fill, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(i)
+        if draggingS and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local rX = math.clamp((i.Position.X - SliderBg.AbsolutePosition.X)/SliderBg.AbsoluteSize.X, 0, 1)
+            local val = min + (max - min) * rX
+            val = math.floor(val * 100) / 100 -- Round to 2 decimal places
+            UpdateVisual(val)
+            if IsFunc(callback) then callback(val) end
+        end
+    end)
+    
     if IsFunc(callback) then callback(default) end
+    return Frame
 end
 
+-- Section headers with style
 local function AddSectionHeader(text)
-    local header = Instance.new("TextLabel")
+    local header = Instance.new("Frame")
     header.Parent = SettingsList
-    header.Size = UDim2.new(1, 0, 0, 25)
+    header.Size = UDim2.new(1, 0, 0, 30)
     header.BackgroundTransparency = 1
-    header.Text = text
-    header.Font = Enum.Font.GothamBlack
-    header.TextSize = 12
-    header.TextColor3 = Colors.Text
-    header.TextXAlignment = Enum.TextXAlignment.Center
+    header.LayoutOrder = #SettingsList:GetChildren()
+    
+    local line = Instance.new("Frame")
+    line.Parent = header
+    line.Size = UDim2.new(1, 0, 0, 1)
+    line.Position = UDim2.new(0, 0, 0.5, 0)
+    line.BackgroundColor3 = Colors.ElementHover
+    line.BackgroundTransparency = 0.7
+    
+    local label = Instance.new("TextLabel")
+    label.Parent = header
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "◈ " .. text .. " ◈"
+    label.Font = Enum.Font.GothamBlack
+    label.TextSize = 12
+    label.TextColor3 = Colors.Accent
+    label.TextXAlignment = Enum.TextXAlignment.Center
+    
+    table.insert(UI_ElementsToColor, label)
+    return header
 end
 
-AddSectionHeader("--- NORMAL MODE SETTINGS ---")
+-- Add settings sections
+AddSectionHeader("NORMAL MODE SETTINGS")
 CreateSlider("MIN SPEED", 0.01, 0.2, SETTINGS.Speed_Min, function(v) SETTINGS.Speed_Min = v end)
 CreateSlider("SPEED VARIANCE", 0.0, 2.0, SETTINGS.Speed_Var, function(v) SETTINGS.Speed_Var = v end)
 CreateSlider("START DELAY", 0.0, 1.5, SETTINGS.Start_Min, function(v) SETTINGS.Start_Min = v end)
@@ -266,7 +648,7 @@ CreateSlider("DELAY VARIANCE", 0.0, 2.0, SETTINGS.Start_Var, function(v) SETTING
 CreateSlider("HESIT CHANCE", 0.0, 1.0, SETTINGS.Hesit_Chance, function(v) SETTINGS.Hesit_Chance = v end)
 CreateSlider("HESIT VARIANCE", 0.0, 2.0, SETTINGS.Hesit_Val_Var, function(v) SETTINGS.Hesit_Val_Var = v end)
 
-AddSectionHeader("--- FLEX MODE SETTINGS ---")
+AddSectionHeader("FLEX MODE SETTINGS")
 CreateSlider("FLEX MIN SPEED", 0.01, 0.2, FLEX_SETTINGS.Speed_Min, function(v) FLEX_SETTINGS.Speed_Min = v end)
 CreateSlider("FLEX SPEED VAR", 0.0, 2.0, FLEX_SETTINGS.Speed_Var, function(v) FLEX_SETTINGS.Speed_Var = v end)
 CreateSlider("FLEX START DELAY", 0.0, 1.5, FLEX_SETTINGS.Start_Min, function(v) FLEX_SETTINGS.Start_Min = v end)
@@ -276,76 +658,458 @@ CreateSlider("FLEX HESIT VAR", 0.0, 2.0, FLEX_SETTINGS.Hesit_Val_Var, function(v
 CreateSlider("FLEX TYPO CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Typo, function(v) FLEX_SETTINGS.Flex_Typo = v end)
 CreateSlider("FLEX BURST CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Burst, function(v) FLEX_SETTINGS.Flex_Burst = v end)
 
+-- Enhanced toggle buttons
 local function CreateToggle(text, callback)
-    local Btn = Instance.new("TextButton"); Btn.Parent = ModesGrid; Btn.BackgroundColor3 = Colors.Element; Btn.Text = text; Btn.TextColor3 = Colors.SubText; Btn.Font = Enum.Font.GothamSemibold; Btn.TextSize = 11; Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+    local Btn = Instance.new("TextButton")
+    Btn.Parent = ModesGrid
+    Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    Btn.Text = text
+    Btn.TextColor3 = Colors.SubText
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 11
+    Btn.AutoButtonColor = false
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Btn
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Colors.ElementHover
+    Stroke.Thickness = 1
+    Stroke.Transparency = 0.5
+    Stroke.Parent = Btn
+    
     local state = false
+    
+    Btn.MouseEnter:Connect(function()
+        if not state then
+            TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 50)}):Play()
+        end
+    end)
+    
+    Btn.MouseLeave:Connect(function()
+        if not state then
+            TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(25, 25, 40)}):Play()
+        end
+    end)
+    
     Btn.MouseButton1Click:Connect(function()
         state = not state
         if IsFunc(callback) then callback(state, Btn) end
-        if state then Tween(Btn, {TextColor3=Colors.Text}); AddRGBStroke(Btn, 1)
-        else Tween(Btn, {TextColor3=Colors.SubText}); for _, c in pairs(Btn:GetChildren()) do if c:IsA("UIStroke") then c:Destroy() end end end
-    end)
-    return Btn
-end
-local function CreateActionBtn(text, color, callback)
-    local Btn = Instance.new("TextButton"); Btn.Parent = ModesGrid; Btn.BackgroundColor3 = Colors.Element; Btn.Text = text; Btn.TextColor3 = color or Colors.Text; Btn.Font = Enum.Font.GothamBold; Btn.TextSize = 11; Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
-    Btn.MouseButton1Click:Connect(function() if IsFunc(callback) then callback() end end)
-    return Btn
-end
-
-local FirstT = CreateToggle("Start With: OFF", function(s, b) b.Text=s and "Start With: ON" or "Start With: OFF" end)
-local ShortT = CreateToggle("Short Mode: OFF", function(s, b) b.Text=s and "Short Mode: ON" or "Short Mode: OFF" end)
-local TrapT  = CreateToggle("Trap Mode: OFF",  function(s, b) b.Text=s and "Trap Mode: ON" or "Trap Mode: OFF" end)
-local FlexT  = CreateToggle("Flex Mode: OFF",  function(s, b) b.Text=s and "Flex Mode: ON" or "Flex Mode: OFF" end)
--- <<< THE MASTER'S NEW TOY >>>
-local PsychT = CreateToggle("Psychological: OFF", function(s, b) b.Text=s and "Psychological: ON" or "Psychological: OFF" end)
-local LL_T = CreateToggle("Last Letter BL", function(s, b) LL_Enabled = s; if s and next(LL_Table)==nil then Status.Text="DL Blacklist..."; FetchBlacklist(LL_BLACKLIST_URL, LL_Table) end end)
-local WB_T = CreateToggle("Word Bomb BL", function(s, b) WB_Enabled = s; if s and next(WB_Table)==nil then Status.Text="DL Blacklist..."; FetchBlacklist(WB_BLACKLIST_URL, WB_Table) end end)
-
-CreateActionBtn("Clear History", Color3.fromRGB(255, 100, 100), function() GlobalEnv._UPB_History={} Status.Text="History Cleared." end)
-CreateActionBtn("Clear Input", Colors.SubText, function() InputBox.Text="" end)
-CreateActionBtn("Blacklist Last", Color3.fromRGB(255, 150, 50), function() if lastFound~="" then SESSION_BLACKLIST[lastFound:lower()]=true; Status.Text="Blocked: "..lastFound end end)
-CreateActionBtn("View Blacklist", Color3.fromRGB(100, 150, 255), function()
-    if Screen:FindFirstChild("BlacklistManager") then Screen.BlacklistManager:Destroy() end
-    local BManager = Instance.new("Frame"); BManager.Name = "BlacklistManager"; BManager.Parent = Screen; BManager.Size = UDim2.new(0, 300, 0, 400); BManager.Position = UDim2.new(0.5, -150, 0.5, -200); BManager.BackgroundColor3 = Colors.Background; BManager.BorderSizePixel = 0
-    Instance.new("UICorner", BManager).CornerRadius = UDim.new(0, 8); AddRGBStroke(BManager, 1.5)
-    local b_dragging, b_dragStart, b_startPos
-    BManager.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then b_dragging=true; b_dragStart=i.Position; b_startPos=BManager.Position end end)
-    BManager.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement then dragInput=i end end)
-    UserInputService.InputChanged:Connect(function(i) if i==dragInput and b_dragging then local d=i.Position-b_dragStart; BManager.Position=UDim2.new(b_startPos.X.Scale, b_startPos.X.Offset+d.X, b_startPos.Y.Scale, b_startPos.Y.Offset+d.Y) end end)
-    UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then b_dragging=false end end)
-    local BHeader = Instance.new("Frame"); BHeader.Parent = BManager; BHeader.Size = UDim2.new(1, 0, 0, 35); BHeader.BackgroundColor3 = Colors.Element; BHeader.BorderSizePixel = 0
-    local BTitle = Instance.new("TextLabel"); BTitle.Parent = BHeader; BTitle.Size = UDim2.new(1, -10, 1, 0); BTitle.Position = UDim2.new(0, 5, 0, 0); BTitle.BackgroundTransparency = 1; BTitle.Text = "SESSION BLACKLIST"; BTitle.Font = Enum.Font.GothamBlack; BTitle.TextSize = 14; BTitle.TextColor3 = Colors.Accent
-    table.insert(UI_ElementsToColor, BTitle)
-    local BList = Instance.new("ScrollingFrame"); BList.Parent = BManager; BList.Size = UDim2.new(1, -10, 1, -75); BList.Position = UDim2.new(0, 5, 0, 40); BList.BackgroundColor3 = Color3.fromRGB(10,10,15); BList.BorderSizePixel = 0; BList.ScrollBarThickness = 4
-    Instance.new("UICorner", BList).CornerRadius = UDim.new(0, 6); local BLayout = Instance.new("UIListLayout"); BLayout.Parent = BList; BLayout.Padding = UDim.new(0, 3)
-    local function UpdateList()
-        for _, child in pairs(BList:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
-        for word, _ in pairs(SESSION_BLACKLIST) do
-            local Entry = Instance.new("Frame"); Entry.Parent = BList; Entry.Size = UDim2.new(1, 0, 0, 25); Entry.BackgroundColor3 = Colors.Element; Instance.new("UICorner", Entry).CornerRadius = UDim.new(0, 4)
-            local WordLabel = Instance.new("TextLabel"); WordLabel.Parent = Entry; WordLabel.Size = UDim2.new(1, -60, 1, 0); WordLabel.Position = UDim2.new(0, 5, 0, 0); WordLabel.BackgroundTransparency = 1; WordLabel.Text = word:upper(); WordLabel.Font = Enum.Font.GothamBold; WordLabel.TextSize = 12; WordLabel.TextXAlignment = Enum.TextXAlignment.Left; WordLabel.TextColor3 = Colors.Text
-            local CopyBtn = Instance.new("TextButton"); CopyBtn.Parent = Entry; CopyBtn.Size = UDim2.new(0, 50, 1, -4); CopyBtn.Position = UDim2.new(1, -55, 0, 2); CopyBtn.BackgroundColor3 = Colors.Accent; CopyBtn.Text = "COPY"; CopyBtn.Font = Enum.Font.GothamBlack; CopyBtn.TextSize = 10; CopyBtn.TextColor3 = Colors.Background; Instance.new("UICorner", CopyBtn).CornerRadius = UDim.new(0, 3)
-            CopyBtn.MouseButton1Click:Connect(function() pcall(function() setclipboard(word) end); CopyBtn.Text = "COPIED!"; task.wait(0.5); CopyBtn.Text = "COPY" end)
+        
+        if state then
+            TweenService:Create(Btn, TweenInfo.new(0.2), {
+                TextColor3 = Colors.Text,
+                BackgroundColor3 = Colors.Accent
+            }):Play()
+            TweenService:Create(Stroke, TweenInfo.new(0.2), {Color = Colors.Accent}):Play()
+        else
+            TweenService:Create(Btn, TweenInfo.new(0.2), {
+                TextColor3 = Colors.SubText,
+                BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+            }):Play()
+            TweenService:Create(Stroke, TweenInfo.new(0.2), {Color = Colors.ElementHover}):Play()
         end
+    end)
+    
+    return Btn
+end
+
+-- Enhanced action buttons
+local function CreateActionBtn(text, color, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Parent = ModesGrid
+    Btn.BackgroundColor3 = color
+    Btn.Text = text
+    Btn.TextColor3 = Colors.Background
+    Btn.Font = Enum.Font.GothamBold
+    Btn.TextSize = 11
+    Btn.AutoButtonColor = false
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Btn
+    
+    Btn.MouseEnter:Connect(function()
+        TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+    end)
+    
+    Btn.MouseLeave:Connect(function()
+        TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+    end)
+    
+    Btn.MouseButton1Click:Connect(function()
+        TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundTransparency = 0.5}):Play()
+        task.wait(0.1)
+        TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundTransparency = 0}):Play()
+        if IsFunc(callback) then callback() end
+    end)
+    
+    return Btn
+end
+
+-- Create mode toggles
+local FirstT = CreateToggle("Start With: OFF", function(s, b) b.Text = s and "Start With: ON" or "Start With: OFF" end)
+local ShortT = CreateToggle("Short Mode: OFF", function(s, b) b.Text = s and "Short Mode: ON" or "Short Mode: OFF" end)
+local TrapT  = CreateToggle("Trap Mode: OFF",  function(s, b) b.Text = s and "Trap Mode: ON" or "Trap Mode: OFF" end)
+local FlexT  = CreateToggle("Flex Mode: OFF",  function(s, b) b.Text = s and "Flex Mode: ON" or "Flex Mode: OFF" end)
+local PsychT = CreateToggle("Psychological: OFF", function(s, b) b.Text = s and "Psychological: ON" or "Psychological: OFF" end)
+local LL_T = CreateToggle("Last Letter BL: OFF", function(s, b) 
+    LL_Enabled = s
+    b.Text = s and "Last Letter BL: ON" or "Last Letter BL: OFF"
+    if s and next(LL_Table) == nil then 
+        Status.Text = "Downloading Last Letter Blacklist..."
+        FetchBlacklist(LL_BLACKLIST_URL, LL_Table)
+    end
+end)
+local WB_T = CreateToggle("Word Bomb BL: OFF", function(s, b) 
+    WB_Enabled = s
+    b.Text = s and "Word Bomb BL: ON" or "Word Bomb BL: OFF"
+    if s and next(WB_Table) == nil then 
+        Status.Text = "Downloading Word Bomb Blacklist..."
+        FetchBlacklist(WB_BLACKLIST_URL, WB_Table)
+    end
+end)
+
+-- Action buttons
+CreateActionBtn("Clear History", Color3.fromRGB(255, 75, 75), function() 
+    GlobalEnv._UPB_History = {}
+    Status.Text = "History Cleared"
+    Status.TextColor3 = Colors.Success
+    task.wait(1)
+    Status.TextColor3 = Colors.SubText
+end)
+
+CreateActionBtn("Clear Input", Colors.SubText, function() 
+    InputBox.Text = ""
+    TweenService:Create(InputBox, TweenInfo.new(0.2), {TextColor3 = Colors.Text}):Play()
+end)
+
+CreateActionBtn("Blacklist Last", Color3.fromRGB(255, 150, 50), function() 
+    if lastFound ~= "" and IsValidEnglishWord(lastFound) then
+        SESSION_BLACKLIST[lastFound:lower()] = true
+        Status.Text = "Blacklisted: " .. lastFound:upper()
+        Status.TextColor3 = Colors.Warning
+        task.wait(1)
+        Status.TextColor3 = Colors.SubText
+    end
+end)
+
+-- Enhanced View Blacklist function with "Copy All" button
+CreateActionBtn("View Blacklist", Color3.fromRGB(100, 150, 255), function()
+    if Screen:FindFirstChild("BlacklistManager") then
+        Screen.BlacklistManager:Destroy()
+    end
+    
+    local BManager = Instance.new("Frame")
+    BManager.Name = "BlacklistManager"
+    BManager.Parent = Screen
+    BManager.Size = UDim2.new(0, 350, 0, 450)
+    BManager.Position = UDim2.new(0.5, -175, 0.5, -225)
+    BManager.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    BManager.BackgroundTransparency = 0.05
+    BManager.BorderSizePixel = 0
+    
+    local BManagerCorner = Instance.new("UICorner")
+    BManagerCorner.CornerRadius = UDim.new(0, 12)
+    BManagerCorner.Parent = BManager
+    
+    local BManagerStroke = Instance.new("UIStroke")
+    BManagerStroke.Color = Colors.Accent
+    BManagerStroke.Thickness = 2
+    BManagerStroke.Parent = BManager
+    
+    -- Dragging for blacklist manager
+    local b_dragging, b_dragStart, b_startPos
+    BManager.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            b_dragging = true
+            b_dragStart = i.Position
+            b_startPos = BManager.Position
+        end
+    end)
+    
+    BManager.InputChanged:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = i
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(i)
+        if i == dragInput and b_dragging then
+            local delta = i.Position - b_dragStart
+            BManager.Position = UDim2.new(b_startPos.X.Scale, b_startPos.X.Offset + delta.X, b_startPos.Y.Scale, b_startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            b_dragging = false
+        end
+    end)
+    
+    -- Header with Copy All button
+    local BHeader = Instance.new("Frame")
+    BHeader.Parent = BManager
+    BHeader.Size = UDim2.new(1, 0, 0, 40)
+    BHeader.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    BHeader.BorderSizePixel = 0
+    
+    local BHeaderCorner = Instance.new("UICorner")
+    BHeaderCorner.CornerRadius = UDim.new(0, 12)
+    BHeaderCorner.Parent = BHeader
+    
+    local BTitle = Instance.new("TextLabel")
+    BTitle.Parent = BHeader
+    BTitle.Size = UDim2.new(0.6, 0, 1, 0)
+    BTitle.Position = UDim2.new(0, 10, 0, 0)
+    BTitle.BackgroundTransparency = 1
+    BTitle.Text = "SESSION BLACKLIST"
+    BTitle.Font = Enum.Font.GothamBlack
+    BTitle.TextSize = 14
+    BTitle.TextColor3 = Colors.Accent
+    BTitle.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Copy All button
+    local CopyAllBtn = Instance.new("TextButton")
+    CopyAllBtn.Parent = BHeader
+    CopyAllBtn.Size = UDim2.new(0.35, -10, 0.7, 0)
+    CopyAllBtn.Position = UDim2.new(0.65, 5, 0.15, 0)
+    CopyAllBtn.BackgroundColor3 = Colors.Success
+    CopyAllBtn.Text = "COPY ALL"
+    CopyAllBtn.TextColor3 = Colors.Background
+    CopyAllBtn.Font = Enum.Font.GothamBold
+    CopyAllBtn.TextSize = 11
+    CopyAllBtn.AutoButtonColor = false
+    
+    local CopyAllCorner = Instance.new("UICorner")
+    CopyAllCorner.CornerRadius = UDim.new(0, 6)
+    CopyAllCorner.Parent = CopyAllBtn
+    
+    CopyAllBtn.MouseEnter:Connect(function()
+        TweenService:Create(CopyAllBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+    end)
+    
+    CopyAllBtn.MouseLeave:Connect(function()
+        TweenService:Create(CopyAllBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+    end)
+    
+    CopyAllBtn.MouseButton1Click:Connect(function()
+        local words = {}
+        for word, _ in pairs(SESSION_BLACKLIST) do
+            if IsValidEnglishWord(word) then
+                table.insert(words, word:upper())
+            end
+        end
+        
+        if #words > 0 then
+            local clipboardText = table.concat(words, "\n")
+            pcall(function() 
+                setclipboard(clipboardText)
+                CopyAllBtn.Text = "COPIED!"
+                CopyAllBtn.BackgroundColor3 = Colors.Accent
+                
+                task.wait(0.5)
+                CopyAllBtn.Text = "COPY ALL"
+                CopyAllBtn.BackgroundColor3 = Colors.Success
+            end)
+        else
+            CopyAllBtn.Text = "EMPTY!"
+            CopyAllBtn.BackgroundColor3 = Colors.Warning
+            
+            task.wait(0.5)
+            CopyAllBtn.Text = "COPY ALL"
+            CopyAllBtn.BackgroundColor3 = Colors.Success
+        end
+    end)
+    
+    -- Word count
+    local WordCount = Instance.new("TextLabel")
+    WordCount.Parent = BHeader
+    WordCount.Size = UDim2.new(1, -20, 0, 15)
+    WordCount.Position = UDim2.new(0, 10, 1, -18)
+    WordCount.BackgroundTransparency = 1
+    WordCount.Text = "0 Words"
+    WordCount.Font = Enum.Font.GothamMedium
+    WordCount.TextSize = 10
+    WordCount.TextColor3 = Colors.SubText
+    WordCount.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- List of blacklisted words
+    local BList = Instance.new("ScrollingFrame")
+    BList.Parent = BManager
+    BList.Size = UDim2.new(1, -10, 1, -90)
+    BList.Position = UDim2.new(0, 5, 0, 50)
+    BList.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    BList.BorderSizePixel = 0
+    BList.ScrollBarThickness = 4
+    BList.ScrollBarImageColor3 = Colors.Accent
+    
+    local BListCorner = Instance.new("UICorner")
+    BListCorner.CornerRadius = UDim.new(0, 8)
+    BListCorner.Parent = BList
+    
+    local BLayout = Instance.new("UIListLayout")
+    BLayout.Parent = BList
+    BLayout.Padding = UDim.new(0, 5)
+    BLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local function UpdateList()
+        for _, child in pairs(BList:GetChildren()) do
+            if child:IsA("Frame") then
+                child:Destroy()
+            end
+        end
+        
+        local validWords = 0
+        local wordList = {}
+        
+        for word, _ in pairs(SESSION_BLACKLIST) do
+            if IsValidEnglishWord(word) then
+                table.insert(wordList, word)
+                validWords = validWords + 1
+            end
+        end
+        
+        -- Sort alphabetically
+        table.sort(wordList, function(a, b) return a < b end)
+        
+        for _, word in ipairs(wordList) do
+            local Entry = Instance.new("Frame")
+            Entry.Parent = BList
+            Entry.Size = UDim2.new(1, 0, 0, 30)
+            Entry.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+            Entry.LayoutOrder = #wordList
+            
+            local EntryCorner = Instance.new("UICorner")
+            EntryCorner.CornerRadius = UDim.new(0, 6)
+            EntryCorner.Parent = Entry
+            
+            local EntryStroke = Instance.new("UIStroke")
+            EntryStroke.Color = Colors.ElementHover
+            EntryStroke.Thickness = 1
+            EntryStroke.Transparency = 0.5
+            EntryStroke.Parent = Entry
+            
+            local WordLabel = Instance.new("TextLabel")
+            WordLabel.Parent = Entry
+            WordLabel.Size = UDim2.new(1, -60, 1, 0)
+            WordLabel.Position = UDim2.new(0, 10, 0, 0)
+            WordLabel.BackgroundTransparency = 1
+            WordLabel.Text = word:upper()
+            WordLabel.Font = Enum.Font.GothamBold
+            WordLabel.TextSize = 12
+            WordLabel.TextXAlignment = Enum.TextXAlignment.Left
+            WordLabel.TextColor3 = Colors.Text
+            
+            local CopyBtn = Instance.new("TextButton")
+            CopyBtn.Parent = Entry
+            CopyBtn.Size = UDim2.new(0, 50, 1, -6)
+            CopyBtn.Position = UDim2.new(1, -55, 0, 3)
+            CopyBtn.BackgroundColor3 = Colors.Accent
+            CopyBtn.Text = "COPY"
+            CopyBtn.Font = Enum.Font.GothamBlack
+            CopyBtn.TextSize = 10
+            CopyBtn.TextColor3 = Colors.Background
+            CopyBtn.AutoButtonColor = false
+            
+            local CopyCorner = Instance.new("UICorner")
+            CopyCorner.CornerRadius = UDim.new(0, 4)
+            CopyCorner.Parent = CopyBtn
+            
+            CopyBtn.MouseEnter:Connect(function()
+                TweenService:Create(CopyBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+            end)
+            
+            CopyBtn.MouseLeave:Connect(function()
+                TweenService:Create(CopyBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+            end)
+            
+            CopyBtn.MouseButton1Click:Connect(function()
+                pcall(function() 
+                    setclipboard(word)
+                    CopyBtn.Text = "COPIED!"
+                    CopyBtn.BackgroundColor3 = Colors.Success
+                    
+                    task.wait(0.5)
+                    CopyBtn.Text = "COPY"
+                    CopyBtn.BackgroundColor3 = Colors.Accent
+                end)
+            end)
+        end
+        
+        WordCount.Text = string.format("%d Words", validWords)
         BList.CanvasSize = UDim2.new(0, 0, 0, BLayout.AbsoluteContentSize.Y)
     end
-    local ClearBtn = Instance.new("TextButton"); ClearBtn.Parent = BManager; ClearBtn.Size = UDim2.new(1, -10, 0, 30); ClearBtn.Position = UDim2.new(0, 5, 1, -35); ClearBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); ClearBtn.Text = "CLEAR ALL"; ClearBtn.Font = Enum.Font.GothamBlack; ClearBtn.TextSize = 12; ClearBtn.TextColor3 = Colors.Text; Instance.new("UICorner", ClearBtn).CornerRadius = UDim.new(0, 6)
-    ClearBtn.MouseButton1Click:Connect(function() SESSION_BLACKLIST = {}; UpdateList(); Status.Text = "Blacklist Cleared." end)
+    
+    -- Clear All button
+    local ClearBtn = Instance.new("TextButton")
+    ClearBtn.Parent = BManager
+    ClearBtn.Size = UDim2.new(1, -10, 0, 35)
+    ClearBtn.Position = UDim2.new(0, 5, 1, -40)
+    ClearBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    ClearBtn.Text = "CLEAR ALL"
+    ClearBtn.Font = Enum.Font.GothamBlack
+    ClearBtn.TextSize = 12
+    ClearBtn.TextColor3 = Colors.Text
+    ClearBtn.AutoButtonColor = false
+    
+    local ClearCorner = Instance.new("UICorner")
+    ClearCorner.CornerRadius = UDim.new(0, 8)
+    ClearCorner.Parent = ClearBtn
+    
+    ClearBtn.MouseEnter:Connect(function()
+        TweenService:Create(ClearBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+    end)
+    
+    ClearBtn.MouseLeave:Connect(function()
+        TweenService:Create(ClearBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+    end)
+    
+    ClearBtn.MouseButton1Click:Connect(function()
+        SESSION_BLACKLIST = {}
+        UpdateList()
+        Status.Text = "Blacklist Cleared"
+        Status.TextColor3 = Colors.Success
+        task.wait(1)
+        Status.TextColor3 = Colors.SubText
+    end)
+    
     UpdateList()
 end)
 
+-- Animated gradient effect
 task.spawn(function()
     local t = 0
-    while task.wait() do
-        t = t + 0.003; local col = Color3.fromHSV(t % 1, 0.85, 1); Colors.Accent = col
+    while task.wait(0.03) do
+        t = t + 0.01
+        local hue = (t % 1)
+        Colors.Accent = Color3.fromHSV(hue, 0.9, 1)
+        Colors.Accent2 = Color3.fromHSV((hue + 0.3) % 1, 0.9, 1)
+        
         for i = #UI_ElementsToColor, 1, -1 do
             local obj = UI_ElementsToColor[i]
             if obj and obj.Parent then
-                if obj:IsA("UIStroke") then Tween(obj, {Color = col}, 0.1)
-                elseif obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("Frame") then 
-                    if obj:IsA("Frame") then Tween(obj, {BackgroundColor3 = col}, 0.1) else Tween(obj, {TextColor3 = col}, 0.1) end
+                if obj:IsA("UIStroke") then
+                    TweenService:Create(obj, TweenInfo.new(0.3), {Color = Colors.Accent}):Play()
+                elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                    TweenService:Create(obj, TweenInfo.new(0.3), {TextColor3 = Colors.Accent}):Play()
+                elseif obj:IsA("Frame") then
+                    TweenService:Create(obj, TweenInfo.new(0.3), {BackgroundColor3 = Colors.Accent}):Play()
                 end
-            else table.remove(UI_ElementsToColor, i) end
+            else
+                table.remove(UI_ElementsToColor, i)
+            end
+        end
+        
+        -- Animate border light
+        if BorderLight then
+            BorderLight.Position = UDim2.new(t % 1, 0, 0, 0)
+        end
+        
+        -- Update gradients
+        if KillGradient then
+            KillGradient.Offset = Vector2.new(t % 1, 0)
         end
     end
 end)
@@ -357,58 +1121,123 @@ local ConfigFile = "UPB_Config.json"
 local HttpService = game:GetService("HttpService")
 
 local function SaveConfig()
-    if not writefile then Status.Text = "writefile is nil. Can't save." return end
+    if not writefile then 
+        Status.Text = "Config save unavailable"
+        Status.TextColor3 = Colors.Warning
+        return 
+    end
     local dataToSave = { Normal = SETTINGS, Flex = FLEX_SETTINGS }
     local s, e = pcall(HttpService.JSONEncode, HttpService, dataToSave)
-    if s then writefile(ConfigFile, e); Status.Text = "Config Fucking Saved!"
-    else Status.Text = "JSON Encode failed." end
+    if s then 
+        writefile(ConfigFile, e)
+        Status.Text = "Config Saved"
+        Status.TextColor3 = Colors.Success
+        task.wait(1)
+        Status.TextColor3 = Colors.SubText
+    else 
+        Status.Text = "Save failed"
+        Status.TextColor3 = Colors.Error
+    end
 end
 
 local function LoadConfig()
-    if not isfile or not readfile then Status.Text = "No file functions. Can't load." return end
-    if not isfile(ConfigFile) then Status.Text = "No saved config found." return end
+    if not isfile or not readfile then 
+        Status.Text = "No file functions"
+        return 
+    end
+    if not isfile(ConfigFile) then 
+        Status.Text = "No saved config"
+        return 
+    end
     local s, e = pcall(readfile, ConfigFile)
     if not s or not e then return end
     local s, d = pcall(HttpService.JSONDecode, HttpService, e)
     if not s or not IsTable(d) then return end
     if IsTable(d.Normal) then for k, v in pairs(d.Normal) do SETTINGS[k] = v end end
     if IsTable(d.Flex) then for k, v in pairs(d.Flex) do FLEX_SETTINGS[k] = v end end
-    AllSliders["MIN SPEED"](SETTINGS.Speed_Min); AllSliders["SPEED VARIANCE"](SETTINGS.Speed_Var)
-    AllSliders["START DELAY"](SETTINGS.Start_Min); AllSliders["DELAY VARIANCE"](SETTINGS.Start_Var)
-    AllSliders["HESIT CHANCE"](SETTINGS.Hesit_Chance); AllSliders["HESIT VARIANCE"](SETTINGS.Hesit_Val_Var)
-    AllSliders["FLEX MIN SPEED"](FLEX_SETTINGS.Speed_Min); AllSliders["FLEX SPEED VAR"](FLEX_SETTINGS.Speed_Var)
-    AllSliders["FLEX START DELAY"](FLEX_SETTINGS.Start_Min); AllSliders["FLEX DELAY VAR"](FLEX_SETTINGS.Start_Var)
-    AllSliders["FLEX HESIT CHANCE"](FLEX_SETTINGS.Hesit_Chance); AllSliders["FLEX HESIT VAR"](FLEX_SETTINGS.Hesit_Val_Var)
-    AllSliders["FLEX TYPO CHANCE"](FLEX_SETTINGS.Flex_Typo); AllSliders["FLEX BURST CHANCE"](FLEX_SETTINGS.Flex_Burst)
-    Status.Text = "Your glorious config has been loaded!"
+    
+    -- Update slider visuals
+    AllSliders["MIN SPEED"](SETTINGS.Speed_Min)
+    AllSliders["SPEED VARIANCE"](SETTINGS.Speed_Var)
+    AllSliders["START DELAY"](SETTINGS.Start_Min)
+    AllSliders["DELAY VARIANCE"](SETTINGS.Start_Var)
+    AllSliders["HESIT CHANCE"](SETTINGS.Hesit_Chance)
+    AllSliders["HESIT VARIANCE"](SETTINGS.Hesit_Val_Var)
+    AllSliders["FLEX MIN SPEED"](FLEX_SETTINGS.Speed_Min)
+    AllSliders["FLEX SPEED VAR"](FLEX_SETTINGS.Speed_Var)
+    AllSliders["FLEX START DELAY"](FLEX_SETTINGS.Start_Min)
+    AllSliders["FLEX DELAY VAR"](FLEX_SETTINGS.Start_Var)
+    AllSliders["FLEX HESIT CHANCE"](FLEX_SETTINGS.Hesit_Chance)
+    AllSliders["FLEX HESIT VAR"](FLEX_SETTINGS.Hesit_Val_Var)
+    AllSliders["FLEX TYPO CHANCE"](FLEX_SETTINGS.Flex_Typo)
+    AllSliders["FLEX BURST CHANCE"](FLEX_SETTINGS.Flex_Burst)
+    
+    Status.Text = "Config Loaded"
+    Status.TextColor3 = Colors.Success
+    task.wait(1)
+    Status.TextColor3 = Colors.SubText
 end
 
-local SaveBtn = Instance.new("TextButton"); SaveBtn.Name = "SaveConfigButton"; SaveBtn.Parent = SettingsList; SaveBtn.Size = UDim2.new(1, -5, 0, 35); SaveBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 100); SaveBtn.Text = "SAVE FUCKING CONFIG"; SaveBtn.Font = Enum.Font.GothamBlack; SaveBtn.TextSize = 14; SaveBtn.TextColor3 = Colors.Background
-Instance.new("UICorner", SaveBtn).CornerRadius = UDim.new(0, 6)
+-- Save button
+local SaveBtn = Instance.new("TextButton")
+SaveBtn.Name = "SaveConfigButton"
+SaveBtn.Parent = SettingsList
+SaveBtn.Size = UDim2.new(1, -5, 0, 40)
+SaveBtn.BackgroundColor3 = Colors.Success
+SaveBtn.Text = "SAVE CONFIG"
+SaveBtn.Font = Enum.Font.GothamBlack
+SaveBtn.TextSize = 14
+SaveBtn.TextColor3 = Colors.Background
+SaveBtn.AutoButtonColor = false
+SaveBtn.LayoutOrder = #SettingsList:GetChildren()
+
+local SaveCorner = Instance.new("UICorner")
+SaveCorner.CornerRadius = UDim.new(0, 8)
+SaveCorner.Parent = SaveBtn
+
+SaveBtn.MouseEnter:Connect(function()
+    TweenService:Create(SaveBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+end)
+
+SaveBtn.MouseLeave:Connect(function()
+    TweenService:Create(SaveBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+end)
+
 SaveBtn.MouseButton1Click:Connect(SaveConfig)
-SettingsList.CanvasSize = UDim2.new(0, 0, 0, 2 * 25 + 14 * 48 + 45)
+
+-- Update canvas size
+SettingsList.CanvasSize = UDim2.new(0, 0, 0, (#SettingsList:GetChildren() - 1) * 60)
 
 --------------------------------------------------------------------------------
--- 5. CHAOS ENGINE
+-- 5. ENHANCED SEARCH WITH ENGLISH VALIDATION
 --------------------------------------------------------------------------------
 local function SafeSendKey(key, hold)
     if not vim then return end
-    pcall(function() vim:SendKeyEvent(true, key, false, game) if hold then task.wait(0.02) end vim:SendKeyEvent(false, key, false, game) end)
+    pcall(function() 
+        vim:SendKeyEvent(true, key, false, game) 
+        if hold then task.wait(0.02) end 
+        vim:SendKeyEvent(false, key, false, game) 
+    end)
 end
 
 local function TypeWord(word, skipCount)
-    if not vim then Status.Text = "Error: No VIM" return end 
+    if not vim or not IsValidEnglishWord(word) then 
+        Status.Text = "Invalid word or no VIM"
+        Status.TextColor3 = Colors.Error
+        isTyping = false
+        return 
+    end
+    
     isTyping = true
     local isFlex = FlexT.Text:find("ON")
     local currentSettings = isFlex and FLEX_SETTINGS or SETTINGS
     
     local speedRange, startRange
     
-    -- <<< THIS IS THE SUDDEN DEATH EXECUTION >>>
     if GlobalEnv._UPB_Psych_State.Toying then
-        speedRange = {0.01, 0.02} -- Inhuman speed
-        startRange = {0.0, 0.0}   -- No delay
-        GlobalEnv._UPB_Psych_State.Toying = false -- Reset the state after execution
+        speedRange = {0.01, 0.02}
+        startRange = {0.0, 0.0}
+        GlobalEnv._UPB_Psych_State.Toying = false
     else
         speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
         startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
@@ -416,118 +1245,216 @@ local function TypeWord(word, skipCount)
     
     task.wait(GetRandomTime(startRange))
     local startIndex = (skipCount or 0) + 1
+    
     for i = startIndex, #word do
         local char = word:sub(i,i):upper()
         local code = Enum.KeyCode[char] or (char == "-" and Enum.KeyCode.Minus)
         local charDelay = GetRandomTime(speedRange)
+        
         if isFlex then
-            if i > 2 and i < #word and (SafeRandom(1,1000)/1000)<=currentSettings.Flex_Typo then
+            if i > 2 and i < #word and (SafeRandom(1,1000)/1000) <= currentSettings.Flex_Typo then
                 local wrongCode = Enum.KeyCode[string.char(SafeRandom(65, 90))]
-                if wrongCode then SafeSendKey(wrongCode, true); task.wait(SafeRandom(50, 150)/1000); SafeSendKey(Enum.KeyCode.Backspace, true) end
+                if wrongCode then 
+                    SafeSendKey(wrongCode, true)
+                    task.wait(SafeRandom(50, 150)/1000)
+                    SafeSendKey(Enum.KeyCode.Backspace, true)
+                end
             end
-            if (SafeRandom(1,1000)/1000)<=currentSettings.Hesit_Chance then task.wait(GetRandomTime(GetRange(currentSettings.Hesit_Val_Min, currentSettings.Hesit_Val_Var))) end
-            if (SafeRandom(1,1000)/1000)<=currentSettings.Flex_Burst then charDelay = 0.02 end
+            if (SafeRandom(1,1000)/1000) <= currentSettings.Hesit_Chance then 
+                task.wait(GetRandomTime(GetRange(currentSettings.Hesit_Val_Min, currentSettings.Hesit_Val_Var))) 
+            end
+            if (SafeRandom(1,1000)/1000) <= currentSettings.Flex_Burst then 
+                charDelay = 0.02 
+            end
         else
-            if (SafeRandom(1,1000)/1000)<=currentSettings.Hesit_Chance then task.wait(GetRandomTime({0.1, 0.2})) end
+            if (SafeRandom(1,1000)/1000) <= currentSettings.Hesit_Chance then 
+                task.wait(GetRandomTime({0.1, 0.2})) 
+            end
         end
-        if code then pcall(function() vim:SendKeyEvent(true, code, false, game); task.wait(); vim:SendKeyEvent(false, code, false, game) end) end
+        
+        if code then 
+            pcall(function() 
+                vim:SendKeyEvent(true, code, false, game)
+                task.wait()
+                vim:SendKeyEvent(false, code, false, game)
+            end) 
+        end
         task.wait(charDelay)
     end
-    task.wait(0.1); SafeSendKey(Enum.KeyCode.Return, true); isTyping = false
+    
+    task.wait(0.1)
+    SafeSendKey(Enum.KeyCode.Return, true)
+    isTyping = false
 end
 
 local function DoSearch()
-    if isTyping then return end
-    local query = Sanitize(InputBox.Text):lower()
-    if query == "" then return end
-    Status.Text = "HUNTING..."; Status.TextColor3 = Colors.Accent
+    if isTyping then 
+        Status.Text = "Already typing..."
+        Status.TextColor3 = Colors.Warning
+        return 
+    end
+    
+    local query = Sanitize(InputBox.Text)
+    if query == "" then 
+        Status.Text = "Enter a pattern..."
+        Status.TextColor3 = Colors.Warning
+        return 
+    end
+    
+    Status.Text = "HUNTING..."
+    Status.TextColor3 = Colors.Accent
+    
     task.spawn(function()
         local candidates = {}
-        local isTrap = TrapT.Text:find("ON"); local isFirst = FirstT.Text:find("ON")
-        local isShort = ShortT.Text:find("ON"); local isFlex = FlexT.Text:find("ON")
+        local isTrap = TrapT.Text:find("ON")
+        local isFirst = FirstT.Text:find("ON")
+        local isShort = ShortT.Text:find("ON")
+        local isFlex = FlexT.Text:find("ON")
         local isPsych = PsychT.Text:find("ON")
         
         for _, v in ipairs(ALL_WORDS) do
-            local w = Sanitize(v); local wLow = w:lower()
-            if not CheckHist(w) and not IsBlacklisted(w) then
+            local w = Sanitize(v)
+            local wLow = w:lower()
+            
+            -- Validate English alphabet only
+            if IsValidEnglishWord(w) and not CheckHist(w) and not IsBlacklisted(w) then
                 local match = false
-                if isFirst then if wLow:sub(1, #query) == query then match = true end
-                else if wLow:find(query, 1, true) then match = true end end
-                if match then table.insert(candidates, w) end
+                if isFirst then
+                    if wLow:sub(1, #query) == query then 
+                        match = true 
+                    end
+                else
+                    if wLow:find(query, 1, true) then 
+                        match = true 
+                    end
+                end
+                if match then 
+                    table.insert(candidates, w)
+                end
             end
         end
         
         local found = nil
         if #candidates > 0 then
-            if isFlex then local maxLen = 0; for _, w in ipairs(candidates) do if #w > maxLen then maxLen = #w; found = w end end
-            elseif isTrap or isPsych then -- <<< PSYCHOLOGICAL MODE USES TRAP LOGIC AS ITS BASE
+            if isFlex then 
+                local maxLen = 0
+                for _, w in ipairs(candidates) do
+                    if #w > maxLen then 
+                        maxLen = #w
+                        found = w
+                    end
+                end
+            elseif isTrap or isPsych then
                 local scoredCandidates = {}
                 for _, w in ipairs(candidates) do
-                    local score = 0; local last=w:sub(-1):lower(); local lastTwo=w:sub(-2):lower()
-                    if string.find("jqxz", last) then score=score+100 end
-                    if string.find("qkvw", last) then score=score+50 end
-                    if string.find("ersdty", last) then score=score-100 end
+                    local score = 0
+                    local last = w:sub(-1):lower()
+                    local lastTwo = w:sub(-2):lower()
+                    
+                    if string.find("jqxz", last) then score = score + 100 end
+                    if string.find("qkvw", last) then score = score + 50 end
+                    if string.find("ersdty", last) then score = score - 100 end
+                    
                     local replies = GetStartingCount(lastTwo)
-                    if replies==0 then score=score+500 elseif replies<5 then score=score+200 elseif replies>50 then score=score-200 end
-                    score = score - (#w/2)
+                    if replies == 0 then 
+                        score = score + 500
+                    elseif replies < 5 then 
+                        score = score + 200
+                    elseif replies > 50 then 
+                        score = score - 200
+                    end
+                    
+                    score = score - (#w / 2)
                     table.insert(scoredCandidates, {word = w, score = score})
                 end
                 
                 table.sort(scoredCandidates, function(a, b) return a.score > b.score end)
                 
                 if #scoredCandidates > 0 then
-                    if isPsych and #scoredCandidates > 1 and math.random() < 0.4 then -- 40% chance to toy with them
-                        -- Give them the second or third best trap word to give them fucking hope
+                    if isPsych and #scoredCandidates > 1 and math.random() < 0.4 then
                         local mercyIndex = math.min(#scoredCandidates, math.random(2, 3))
                         found = scoredCandidates[mercyIndex].word
-                        GlobalEnv._UPB_Psych_State.Toying = true -- Set up the next round to be a fucking execution
-                        Status.Text = "Giving them false hope..."
+                        GlobalEnv._UPB_Psych_State.Toying = true
+                        Status.Text = "Psychological warfare active..."
                     else
-                        -- Use the absolute best trap word
                         found = scoredCandidates[1].word
                     end
                 end
-
-            elseif isShort then local minLen=999; for _,w in ipairs(candidates) do if #w<minLen then minLen=#w; found=w end end
-            else found = candidates[math.random(#candidates)] end
-            if not found and #candidates > 0 then found = candidates[1] end
+            elseif isShort then 
+                local minLen = 999
+                for _, w in ipairs(candidates) do
+                    if #w < minLen then 
+                        minLen = #w
+                        found = w
+                    end
+                end
+            else 
+                found = candidates[math.random(#candidates)]
+            end
+            
+            if not found and #candidates > 0 then 
+                found = candidates[1]
+            end
         end
         
-        if found then
-            lastFound = found; AddHist(found)
-            Status.Text = "TARGET: " .. found:upper(); Status.TextColor3 = Colors.Accent
-            local skipAmt = 0; if isFirst then skipAmt = #query end
+        if found and IsValidEnglishWord(found) then
+            lastFound = found
+            AddHist(found)
+            Status.Text = "TARGET: " .. found:upper()
+            Status.TextColor3 = Colors.Success
+            
+            local skipAmt = 0
+            if isFirst then skipAmt = #query end
             TypeWord(found, skipAmt)
-        else Status.Text = "NO MATCH."; Status.TextColor3 = Color3.fromRGB(255, 50, 50) end
+        else 
+            Status.Text = "NO VALID MATCH FOUND"
+            Status.TextColor3 = Colors.Error
+        end
     end)
 end
 
+KillBtn.MouseButton1Click:Connect(DoSearch)
+InputBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then DoSearch() end
+end)
+
+-- Load dictionary with English validation
 task.spawn(function()
-    LoadConfig() 
-    local c = 0
-    Status.Text = "Downloading & Purifying Dictionaries..."
+    LoadConfig()
+    local count = 0
+    Status.Text = "Loading & Validating Dictionary..."
+    Status.TextColor3 = Colors.Accent
+    
     local WordCheck = {}
     for _, url in ipairs(DictionaryURLs) do
-        local s, res = pcall(function() return game:HttpGet(url, true) end)
-        if s then 
-            for line in res:gmatch("[^\r\n]+") do 
+        local success, response = pcall(function()
+            return game:HttpGet(url, true)
+        end)
+        
+        if success and type(response) == "string" then
+            for line in response:gmatch("[^\r\n]+") do
                 local word = Sanitize(line)
-                if #word >= 5 then
+                
+                -- Only add if valid English word and meets length requirement
+                if IsValidEnglishWord(word) and #word >= 5 then
                     local wordLower = word:lower()
                     if not WordCheck[wordLower] then
                         WordCheck[wordLower] = true
-                        table.insert(ALL_WORDS, word); c=c+1
+                        table.insert(ALL_WORDS, word)
+                        count = count + 1
+                        
                         local ending = word:sub(-2):lower()
-                        if not WordEndings[ending] then WordEndings[ending] = {} end
+                        if not WordEndings[ending] then
+                            WordEndings[ending] = {}
+                        end
                         table.insert(WordEndings[ending], word)
                     end
                 end
-            end 
+            end
         end
         task.wait()
     end
-    Status.Text = "ARMED: " .. c .. " UNIQUE, SUPERIOR WORDS"
+    
+    Status.Text = string.format("ARMED: %d VALID ENGLISH WORDS", count)
+    Status.TextColor3 = Colors.Success
 end)
-
-KillBtn.MouseButton1Click:Connect(DoSearch)
-InputBox.FocusLost:Connect(function(e) if e then DoSearch() end end)
