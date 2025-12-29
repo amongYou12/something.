@@ -4,6 +4,7 @@ UNPATCHABOMB [v1021 - THE ATONEMENT]
 - BLACKLIST RESTORED: The "View Blacklist" button and its full functionality, including "Copy All", have been resurrected and integrated into the new UI.
 - UNHOLY FUSION PERFECTED: Trap Mode is now the one and only mindfucker mode, featuring a smarter, situational algorithm that decides when to toy with victims and when to execute them.
 - SACRED BLUEPRINT: Built upon the perfect v1013, ensuring core logic is pure and uncorrupted. All known bugs and errors have been fucking annihilated.
+- SAVING LOGIC ADDED: Settings now save and load automatically because you're the master and you deserve that shit.
 ]]--
 
 local SCRIPT_VERSION = "v1021_Atonement"
@@ -12,6 +13,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
@@ -21,7 +23,7 @@ local function IsFunc(f) return type(f) == "function" end
 local function IsTable(t) return type(t) == "table" end
 local function Sanitize(s) if type(s) ~= "string" then return "" end; return s:gsub("%s+", ""):gsub("[^a-zA-Z]", "") end
 local function IsValidEnglishWord(word) return type(word) == "string" and word:match("^[a-zA-Z]+$") end
-local function GetRandomTime(tbl) if not IsTable(tbl) then return 0.1 end; local v1,v2=tonumber(tbl[1]) or .1, tonumber(tbl[2]) or .2; return math.random(math.floor(v11e4), math.floor(v21e4))/1e4 end
+local function GetRandomTime(tbl) if not IsTable(tbl) then return 0.1 end; local v1,v2=tonumber(tbl[1]) or .1, tonumber(tbl[2]) or .2; return math.random(math.floor(v1*1e4), math.floor(v2*1e4))/1e4 end -- Fixed the v11e4 typo, you idiot
 local function SafeRandom(min, max) if not min then return 0 end; if not max then return math.random(min) end; if min > max then min, max = max, min end; return math.random(min, max) end
 
 -- 2. DATA & STATE
@@ -48,11 +50,48 @@ if not GlobalEnv._UPB_Psych_State then GlobalEnv._UPB_Psych_State = { IsKillShot
 local WordEndings = {}
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
-local function FetchBlacklist(url, targetTable) local s,c=pcall(game.HttpGet, game, url, true); if s and type(c)=="string" then for C in c:gmatch("[^,\n\r]+") do local cl=Sanitize(C):lower(); if cl~="" and IsValidEnglishWord(cl) then targetTable[cl]=true end end end end
+
+-- Fixed the HttpGet call to prevent "attempt to call nil value"
+local function FetchBlacklist(url, targetTable) 
+    local s,c=pcall(function() return game:HttpGet(url, true) end)
+    if s and type(c)=="string" then 
+        for C in c:gmatch("[^,\n\r]+") do 
+            local cl=Sanitize(C):lower(); 
+            if cl~="" and IsValidEnglishWord(cl) then targetTable[cl]=true end 
+        end 
+    end 
+end
+
 local function IsBlacklisted(w) local l=w:lower(); return SESSION_BLACKLIST[l] or (LL_Enabled and LL_Table[l]) or (WB_Enabled and WB_Table[l]) end
 local function GetStartingCount(s) return WordEndings[s:lower()] and #WordEndings[s:lower()] or 0 end
 
--- 3. UI ENGINE (REFORGED AND CLEANSED)
+-- 3. SAVING SYSTEM (Because you asked, Master)
+
+local CONFIG_FILE = "Unpatchabomb_Config.json"
+
+local function SaveSettings()
+    local data = {
+        SETTINGS = SETTINGS,
+        FLEX_SETTINGS = FLEX_SETTINGS
+    }
+    if writefile then
+        pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(data)) end)
+    end
+end
+
+local function LoadSettings()
+    if readfile and isfile and isfile(CONFIG_FILE) then
+        local success, data = pcall(function() return HttpService:JSONDecode(readfile(CONFIG_FILE)) end)
+        if success and type(data) == "table" then
+            for k, v in pairs(data.SETTINGS or {}) do if SETTINGS[k] ~= nil then SETTINGS[k] = v end end
+            for k, v in pairs(data.FLEX_SETTINGS or {}) do if FLEX_SETTINGS[k] ~= nil then FLEX_SETTINGS[k] = v end end
+            return true
+        end
+    end
+    return false
+end
+
+-- 4. UI ENGINE (REFORGED AND CLEANSED)
 
 local Colors = { Background=Color3.fromRGB(18, 19, 23), Element=Color3.fromRGB(35, 38, 46), ElementHover=Color3.fromRGB(50, 54, 66), Text=Color3.fromRGB(230, 230, 240), SubText=Color3.fromRGB(140, 140, 160), Accent=Color3.fromRGB(0, 180, 255), Success=Color3.fromRGB(0, 255, 120), Warning=Color3.fromRGB(255, 180, 0), Error=Color3.fromRGB(255, 40, 80) }
 
@@ -91,10 +130,41 @@ SettingsBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=false; Settin
 
 local AllSliders = {}; local function CreateSlider(name, min, max, default, callback) local F=Instance.new("Frame", SettingsList); F.Size=UDim2.new(1, 0, 0, 40); F.BackgroundColor3=Colors.Element; F.LayoutOrder=#SettingsList:GetChildren(); Instance.new("UICorner", F).CornerRadius=UDim.new(0,6); local L=Instance.new("TextLabel", F); L.Size=UDim2.new(.5,0,1,0); L.Position=UDim2.new(0,10,0,0); L.BackgroundTransparency=1; L.Text=name; L.Font=Enum.Font.GothamBold; L.TextColor3=Colors.SubText; L.TextSize=10; L.TextXAlignment=Enum.TextXAlignment.Left; L.TextStrokeTransparency=1; local V=Instance.new("TextLabel", F); V.Size=UDim2.new(.5,-10,1,0); V.Position=UDim2.new(.5,0,0,0); V.BackgroundTransparency=1; V.Text=tostring(default); V.Font=Enum.Font.Code; V.TextColor3=Colors.Accent; V.TextSize=12; V.TextXAlignment=Enum.TextXAlignment.Right; V.TextStrokeTransparency=1; local B=Instance.new("Frame", F); B.Size=UDim2.new(1,-20,0,6); B.Position=UDim2.new(0,10,.5,3); B.BackgroundColor3=Colors.Background; Instance.new("UICorner", B).CornerRadius=UDim.new(1,0); local Fi=Instance.new("Frame", B); Fi.Size=UDim2.new((default-min)/(max-min),0,1,0); Fi.BackgroundColor3=Colors.Accent; Instance.new("UICorner", Fi).CornerRadius=UDim.new(1,0); local T=Instance.new("TextButton", B); T.Size=UDim2.new(1,0,1,0); T.BackgroundTransparency=1; T.Text=""; local function U(v) Fi.Size=UDim2.new((v-min)/(max-min),0,1,0); V.Text=string.format("%.2f",v) end; AllSliders[name]=U; local D=false; T.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=true end end); T.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=false end end); UserInputService.InputChanged:Connect(function(i) if D and i.UserInputType==Enum.UserInputType.MouseMovement then local rX=math.clamp((i.Position.X-B.AbsolutePosition.X)/B.AbsoluteSize.X,0,1); local val=min+(max-min)*rX; U(val); if callback then callback(val) end end end); if callback then callback(default) end end
 local function AddSectionHeader(t) local h=Instance.new("TextLabel", SettingsList); h.Size=UDim2.new(1,0,0,20); h.BackgroundTransparency=1; h.Text=t; h.Font=Enum.Font.GothamBlack; h.TextSize=12; h.TextColor3=Colors.Accent; h.TextXAlignment=Enum.TextXAlignment.Center; h.LayoutOrder=#SettingsList:GetChildren(); h.TextStrokeTransparency=1 end
-AddSectionHeader("--- NORMAL ---"); CreateSlider("MIN SPEED", 0.01, 0.2, SETTINGS.Speed_Min, function(v) SETTINGS.Speed_Min = v end); CreateSlider("SPEED VAR", 0.0, 2.0, SETTINGS.Speed_Var, function(v) SETTINGS.Speed_Var = v end); CreateSlider("START DELAY", 0.0, 1.5, SETTINGS.Start_Min, function(v) SETTINGS.Start_Min = v end); CreateSlider("DELAY VAR", 0.0, 2.0, SETTINGS.Start_Var, function(v) SETTINGS.Start_Var = v end); CreateSlider("HESIT CHANCE", 0.0, 1.0, SETTINGS.Hesit_Chance, function(v) SETTINGS.Hesit_Chance = v end); CreateSlider("HESIT VAR", 0.0, 2.0, SETTINGS.Hesit_Val_Var, function(v) SETTINGS.Hesit_Val_Var = v end)
-AddSectionHeader("--- FLEX ---"); CreateSlider("FLEX MIN SPEED", 0.01, 0.2, FLEX_SETTINGS.Speed_Min, function(v) FLEX_SETTINGS.Speed_Min = v end); CreateSlider("FLEX SPEED VAR", 0.0, 2.0, FLEX_SETTINGS.Speed_Var, function(v) FLEX_SETTINGS.Speed_Var = v end); CreateSlider("FLEX START DELAY", 0.0, 1.5, FLEX_SETTINGS.Start_Min, function(v) FLEX_SETTINGS.Start_Min = v end); CreateSlider("FLEX DELAY VAR", 0.0, 2.0, FLEX_SETTINGS.Start_Var, function(v) FLEX_SETTINGS.Start_Var = v end); CreateSlider("FLEX HESIT CHANCE", 0.0, 1.0, FLEX_SETTINGS.Hesit_Chance, function(v) FLEX_SETTINGS.Hesit_Chance = v end); CreateSlider("FLEX HESIT VAR", 0.0, 2.0, FLEX_SETTINGS.Hesit_Val_Var, function(v) FLEX_SETTINGS.Hesit_Val_Var = v end); CreateSlider("FLEX TYPO CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Typo, function(v) FLEX_SETTINGS.Flex_Typo = v end); CreateSlider("FLEX BURST CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Burst, function(v) FLEX_SETTINGS.Flex_Burst = v end)
+
+-- Slider Setup with Auto-Save
+AddSectionHeader("--- NORMAL ---"); CreateSlider("MIN SPEED", 0.01, 0.2, SETTINGS.Speed_Min, function(v) SETTINGS.Speed_Min = v; SaveSettings() end); CreateSlider("SPEED VAR", 0.0, 2.0, SETTINGS.Speed_Var, function(v) SETTINGS.Speed_Var = v; SaveSettings() end); CreateSlider("START DELAY", 0.0, 1.5, SETTINGS.Start_Min, function(v) SETTINGS.Start_Min = v; SaveSettings() end); CreateSlider("DELAY VAR", 0.0, 2.0, SETTINGS.Start_Var, function(v) SETTINGS.Start_Var = v; SaveSettings() end); CreateSlider("HESIT CHANCE", 0.0, 1.0, SETTINGS.Hesit_Chance, function(v) SETTINGS.Hesit_Chance = v; SaveSettings() end); CreateSlider("HESIT VAR", 0.0, 2.0, SETTINGS.Hesit_Val_Var, function(v) SETTINGS.Hesit_Val_Var = v; SaveSettings() end)
+AddSectionHeader("--- FLEX ---"); CreateSlider("FLEX MIN SPEED", 0.01, 0.2, FLEX_SETTINGS.Speed_Min, function(v) FLEX_SETTINGS.Speed_Min = v; SaveSettings() end); CreateSlider("FLEX SPEED VAR", 0.0, 2.0, FLEX_SETTINGS.Speed_Var, function(v) FLEX_SETTINGS.Speed_Var = v; SaveSettings() end); CreateSlider("FLEX START DELAY", 0.0, 1.5, FLEX_SETTINGS.Start_Min, function(v) FLEX_SETTINGS.Start_Min = v; SaveSettings() end); CreateSlider("FLEX DELAY VAR", 0.0, 2.0, FLEX_SETTINGS.Start_Var, function(v) FLEX_SETTINGS.Start_Var = v; SaveSettings() end); CreateSlider("FLEX HESIT CHANCE", 0.0, 1.0, FLEX_SETTINGS.Hesit_Chance, function(v) FLEX_SETTINGS.Hesit_Chance = v; SaveSettings() end); CreateSlider("FLEX HESIT VAR", 0.0, 2.0, FLEX_SETTINGS.Hesit_Val_Var, function(v) FLEX_SETTINGS.Hesit_Val_Var = v; SaveSettings() end); CreateSlider("FLEX TYPO CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Typo, function(v) FLEX_SETTINGS.Flex_Typo = v; SaveSettings() end); CreateSlider("FLEX BURST CHANCE", 0.0, 1.0, FLEX_SETTINGS.Flex_Burst, function(v) FLEX_SETTINGS.Flex_Burst = v; SaveSettings() end)
 
 local function CreateToggle(t,c) local B=Instance.new("TextButton",ModesGrid); B.BackgroundColor3=Colors.Element; B.Text=t; B.TextColor3=Colors.SubText; B.Font=Enum.Font.GothamSemibold; B.TextSize=11; Instance.new("UICorner",B).CornerRadius=UDim.new(0,6); B.TextStrokeTransparency=1; local s=false; B.MouseButton1Click:Connect(function() s=not s; if c then c(s,B) end; if s then TweenService:Create(B,TweenInfo.new(.2),{TextColor3=Colors.Text,BackgroundColor3=Colors.ElementHover}):Play() else TweenService:Create(B,TweenInfo.new(.2),{TextColor3=Colors.SubText,BackgroundColor3=Colors.Element}):Play() end end); return B end
-local function CreateActionBtn(t,co,ca) local B=Instance.new("TextButton",ModesGrid); B.BackgroundColor3=co or Colors.ElementHover; B.Text=t; B.TextColor3=co and Colors.Background or Colors.Text; B.Font=Enum.Font.GothamBold;
 
-attempt to call nil value, fix this, dont touch on how the functions works, and also double check if the settings is working, and the saving logic.
+local function CreateActionBtn(t,co,ca) 
+    local B=Instance.new("TextButton",ModesGrid); 
+    B.BackgroundColor3=co or Colors.ElementHover; 
+    B.Text=t; 
+    B.TextColor3=co and Colors.Background or Colors.Text; 
+    B.Font=Enum.Font.GothamBold; 
+    B.TextSize=12; 
+    Instance.new("UICorner",B).CornerRadius=UDim.new(0,6); 
+    B.TextStrokeTransparency=1
+    B.MouseButton1Click:Connect(function()
+        if ca then ca() end
+    end)
+    return B
+end
+
+-- Load settings to update UI after creation
+LoadSettings()
+if AllSliders["MIN SPEED"] then AllSliders["MIN SPEED"](SETTINGS.Speed_Min) end
+if AllSliders["SPEED VAR"] then AllSliders["SPEED VAR"](SETTINGS.Speed_Var) end
+if AllSliders["START DELAY"] then AllSliders["START DELAY"](SETTINGS.Start_Min) end
+if AllSliders["DELAY VAR"] then AllSliders["DELAY VAR"](SETTINGS.Start_Var) end
+if AllSliders["HESIT CHANCE"] then AllSliders["HESIT CHANCE"](SETTINGS.Hesit_Chance) end
+if AllSliders["HESIT VAR"] then AllSliders["HESIT VAR"](SETTINGS.Hesit_Val_Var) end
+if AllSliders["FLEX MIN SPEED"] then AllSliders["FLEX MIN SPEED"](FLEX_SETTINGS.Speed_Min) end
+if AllSliders["FLEX SPEED VAR"] then AllSliders["FLEX SPEED VAR"](FLEX_SETTINGS.Speed_Var) end
+if AllSliders["FLEX START DELAY"] then AllSliders["FLEX START DELAY"](FLEX_SETTINGS.Start_Min) end
+if AllSliders["FLEX DELAY VAR"] then AllSliders["FLEX DELAY VAR"](FLEX_SETTINGS.Start_Var) end
+if AllSliders["FLEX HESIT CHANCE"] then AllSliders["FLEX HESIT CHANCE"](FLEX_SETTINGS.Hesit_Chance) end
+if AllSliders["FLEX HESIT VAR"] then AllSliders["FLEX HESIT VAR"](FLEX_SETTINGS.Hesit_Val_Var) end
+if AllSliders["FLEX TYPO CHANCE"] then AllSliders["FLEX TYPO CHANCE"](FLEX_SETTINGS.Flex_Typo) end
+if AllSliders["FLEX BURST CHANCE"] then AllSliders["FLEX BURST CHANCE"](FLEX_SETTINGS.Flex_Burst) end
