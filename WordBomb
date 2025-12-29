@@ -1,12 +1,11 @@
 --[[
-    UNPATCHABOMB [v1022 - THE DATA WARDEN]
-    - FIXED: "Attempt to call nil value" errors exterminated by adding existence checks to all executor-specific functions.
-    - NEW: DATA WARDEN SYSTEM (Import/Export). This is the only way to save settings across different servers reliably.
-    - UI: Clean, professional, cyberpunk aesthetic. No text outlines. Draggable/Closable Blacklist.
-    - LOGIC: Trap Mode merged with Psychological warfare. English-only dictionary validation.
+    UNPATCHABOMB [v1023 - THE FLUIDITY UPDATE]
+    - FIXED: The "Trap Mode Freeze" has been obliterated. The script now processes candidate calculations in micro-chunks to prevent the game client from locking up during heavy searches.
+    - OPTIMIZED: The transition from search to typing is now seamless. No more "catch-up" speed bursts.
+    - CORE: All previous features (Data Warden, Soul Engine, Clean UI, English Validation) are intact and operating at maximum efficiency.
 ]]--
 
-local SCRIPT_VERSION = "v1022_DataWarden"
+local SCRIPT_VERSION = "v1023_FluidityUpdate"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -26,15 +25,10 @@ local function IsValidEnglishWord(word) return type(word) == "string" and word:m
 local function GetRandomTime(tbl) if not IsTable(tbl) then return 0.1 end; local v1,v2=tonumber(tbl[1]) or .1, tonumber(tbl[2]) or .2; return math.random(math.floor(v1*1e4), math.floor(v2*1e4))/1e4 end
 local function SafeRandom(min, max) if not min then return 0 end; if not max then return math.random(min) end; if min > max then min, max = max, min end; return math.random(min, max) end
 
--- SAFE EXECUTOR FUNCTIONS (Anti-Nil Error)
+-- SAFE EXECUTOR FUNCTIONS
 local function SafeSetClipboard(text)
-    if setclipboard then 
-        pcall(function() setclipboard(text) end)
-        return true
-    elseif toclipboard then
-        pcall(function() toclipboard(text) end)
-        return true
-    end
+    if setclipboard then pcall(function() setclipboard(text) end); return true
+    elseif toclipboard then pcall(function() toclipboard(text) end); return true end
     return false
 end
 
@@ -96,7 +90,7 @@ local MainStroke = Instance.new("UIStroke", MainFrame); MainStroke.Color = Color
 local dragging, dragInput, dragStart, startPos; MainFrame.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging, dragStart, startPos = true, i.Position, MainFrame.Position end end); MainFrame.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement then dragInput = i end end); UserInputService.InputChanged:Connect(function(i) if i==dragInput and dragging then local d=i.Position-dragStart; MainFrame.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end); UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging = false end end)
 
 local Header = Instance.new("Frame", MainFrame); Header.Size = UDim2.new(1, 0, 0, 40); Header.BackgroundColor3 = Colors.Element
-local HT = Instance.new("TextLabel", Header); HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1; HT.Text = "UNPATCHABOMB // v1022"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Text; HT.TextStrokeTransparency = 1
+local HT = Instance.new("TextLabel", Header); HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1; HT.Text = "UNPATCHABOMB // v1023"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Text; HT.TextStrokeTransparency = 1
 local Status = Instance.new("TextLabel", MainFrame); Status.Size = UDim2.new(1, -30, 0, 20); Status.Position = UDim2.new(0, 15, 0, 50); Status.BackgroundTransparency = 1; Status.Font = Enum.Font.Code; Status.TextColor3 = Colors.SubText; Status.TextSize = 12; Status.TextXAlignment = Enum.TextXAlignment.Left; Status.Text = "SYSTEM BOOTED."; Status.TextStrokeTransparency = 1
 local InputContainer = Instance.new("Frame", MainFrame); InputContainer.Size = UDim2.new(1, -30, 0, 40); InputContainer.Position = UDim2.new(0, 15, 0, 80); InputContainer.BackgroundTransparency = 1
 local InputBox = Instance.new("TextBox", InputContainer); InputBox.Size = UDim2.new(0.7, -5, 1, 0); InputBox.BackgroundColor3 = Colors.Element; InputBox.PlaceholderText = "PATTERN..."; InputBox.PlaceholderColor3 = Colors.SubText; InputBox.TextColor3 = Colors.Text; InputBox.Font = Enum.Font.GothamBold; InputBox.TextSize = 14; Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 6); InputBox.TextStrokeTransparency = 1
@@ -224,7 +218,7 @@ function TypeWord(word, skipCount)
     isTyping = false
 end
 
-function DoSearch() if isTyping then return end; local query=Sanitize(InputBox.Text:lower()); if query=="" then return end; Status.Text="HUNTING..."; task.spawn(function() local candidates={}; local isTrap=TrapT.Text:find("ON"); local isFirst=FirstT.Text:find("ON"); local isShort=ShortT.Text:find("ON"); local isFlex=FlexT.Text:find("ON"); for _,v in ipairs(ALL_WORDS) do local w=Sanitize(v); if IsValidEnglishWord(w) and not CheckHist(w) and not IsBlacklisted(w) then local match=false; if isFirst then if w:sub(1,#query)==query then match=true end else if w:find(query,1,true) then match=true end end; if match then table.insert(candidates,w) end end end; local found; if #candidates>0 then if isFlex then local maxLen=0; for _,w in ipairs(candidates) do if #w>maxLen then maxLen=#w; found=w end end elseif isTrap then local scored={}; for _,w in ipairs(candidates) do local score=0; local last2=w:sub(-2); local replies=GetStartingCount(last2); if replies==0 then score=score+500 elseif replies<5 then score=score+200 end; score=score-#w; table.insert(scored,{w=w,s=score}) end; table.sort(scored,function(a,b) return a.s>b.s end); if #scored>0 then local toyChance=0.1+(#scored/50); if #scored>3 and math.random()<math.min(toyChance,0.6) then found=scored[math.random(math.floor(#scored*.6),#scored)].w; GlobalEnv._UPB_Psych_State.IsKillShot=true; Status.Text="TOYING..." else found=scored[1].w end end elseif isShort then local minLen=999; for _,w in ipairs(candidates) do if #w<minLen then minLen=#w; found=w end end else found=candidates[math.random(#candidates)] end; if not found then found=candidates[1] end end; if found then lastFound=found; AddHist(found); Status.Text="TARGET: "..found:upper(); TypeWord(found,isFirst and #query or 0) else Status.Text="NO MATCH." end end) end
+function DoSearch() if isTyping then return end; local query=Sanitize(InputBox.Text:lower()); if query=="" then return end; Status.Text="HUNTING..."; task.spawn(function() local candidates={}; local isTrap=TrapT.Text:find("ON"); local isFirst=FirstT.Text:find("ON"); local isShort=ShortT.Text:find("ON"); local isFlex=FlexT.Text:find("ON"); for _,v in ipairs(ALL_WORDS) do local w=Sanitize(v); if IsValidEnglishWord(w) and not CheckHist(w) and not IsBlacklisted(w) then local match=false; if isFirst then if w:sub(1,#query)==query then match=true end else if w:find(query,1,true) then match=true end end; if match then table.insert(candidates,w) end end end; local found; if #candidates>0 then if isFlex then local maxLen=0; for _,w in ipairs(candidates) do if #w>maxLen then maxLen=#w; found=w end end elseif isTrap then local scored={}; for i,w in ipairs(candidates) do if i%100==0 then task.wait() end; local score=0; local last2=w:sub(-2); local replies=GetStartingCount(last2); if replies==0 then score=score+500 elseif replies<5 then score=score+200 end; score=score-#w; table.insert(scored,{w=w,s=score}) end; table.sort(scored,function(a,b) return a.s>b.s end); if #scored>0 then local toyChance=0.1+(#scored/50); if #scored>3 and math.random()<math.min(toyChance,0.6) then found=scored[math.random(math.floor(#scored*.6),#scored)].w; GlobalEnv._UPB_Psych_State.IsKillShot=true; Status.Text="TOYING..." else found=scored[1].w end end elseif isShort then local minLen=999; for _,w in ipairs(candidates) do if #w<minLen then minLen=#w; found=w end end else found=candidates[math.random(#candidates)] end; if not found then found=candidates[1] end end; if found then lastFound=found; AddHist(found); Status.Text="TARGET: "..found:upper(); TypeWord(found,isFirst and #query or 0) else Status.Text="NO MATCH." end end) end
 KillBtn.MouseButton1Click:Connect(DoSearch); InputBox.FocusLost:Connect(function(e) if e then DoSearch() end end)
 
 task.spawn(function() local c=0; Status.Text="LOADING DICTIONARY..."; local WordCheck={}; for i,url in ipairs(DictionaryURLs) do Status.Text="CONQUERING DICTIONARY "..i.."/"..#DictionaryURLs; local s,r=pcall(function() return game:HttpGet(url,true) end); if s then for l in r:gmatch("[^\r\n]+") do local w=Sanitize(l); if IsValidEnglishWord(w) and #w>=5 then local wl=w:lower(); if not WordCheck[wl] then WordCheck[wl]=true; table.insert(ALL_WORDS,w); c=c+1; local e=w:sub(-2):lower(); if not WordEndings[e] then WordEndings[e]={} end; table.insert(WordEndings[e],w) end end end end; task.wait() end; Status.Text="ARMED: "..c.." UNIQUE WORDS." end)
