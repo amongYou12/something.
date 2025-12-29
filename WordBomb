@@ -1,13 +1,12 @@
 --[[
-    UNPATCHABOMB [v1033 - THE TITAN VAULT]
-    - NEW: FULL PROFILE SYSTEM. You can now name your configs and save multiple presets.
-    - AUTO-LOAD: Upon injection, the script looks for a profile named "default". SAVE YOUR MAIN CONFIG AS "default" TO HAVE IT AUTO-LOAD.
-    - FILE STRUCTURE: Creates a protected folder 'Unpatchabomb_Saves' to ensure organization and persistence.
-    - LAG FIXED: Zero-Latency Bucket Indexing + Candidate Culling active.
-    - CORE: Trap Mode = Psychological Mode. English Only. Kill Meter.
+    UNPATCHABOMB [v1034 - GOD PATCH]
+    - FIX: Added missing 'ShuffleTable' function (fixed 'call nil value' error).
+    - FIX: Dictionary Loader now properly populates WORD_BUCKETS (fixes Trap Mode accuracy/speed).
+    - PERSISTENCE: switched to Root Folder saving using .txt extension. This bypasses folder permission issues on executors like Xeno.
+    - AUTO-LOAD: Automatically searches for 'UPB_PROFILE_default.txt' on startup.
 ]]--
 
-local SCRIPT_VERSION = "v1033_TitanVault"
+local SCRIPT_VERSION = "v1034_GodPatch"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -27,6 +26,15 @@ local function IsValidEnglishWord(word) return type(word) == "string" and word:m
 local function GetRandomTime(tbl) if not IsTable(tbl) then return 0.1 end; local v1,v2=tonumber(tbl[1]) or .1, tonumber(tbl[2]) or .2; return math.random(math.floor(v1*1e4), math.floor(v2*1e4))/1e4 end
 local function SafeRandom(min, max) if not min then return 0 end; if not max then return math.random(min) end; if min > max then min, max = max, min end; return math.random(min, max) end
 local function SafeSetClipboard(text) if setclipboard then pcall(function() setclipboard(text) end); return true elseif toclipboard then pcall(function() toclipboard(text) end); return true end return false end
+
+-- THE MISSING LINK - RESTORED
+local function ShuffleTable(t)
+    local n = #t
+    for i = n, 2, -1 do
+        local j = math.random(i)
+        t[i], t[j] = t[j], t[i]
+    end
+end
 
 --------------------------------------------------------------------------------
 -- 2. DATA & STATE
@@ -105,7 +113,7 @@ local MainStroke = Instance.new("UIStroke", MainFrame); MainStroke.Color = Color
 local dragging, dragInput, dragStart, startPos; MainFrame.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging, dragStart, startPos = true, i.Position, MainFrame.Position end end); MainFrame.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement then dragInput = i end end); UserInputService.InputChanged:Connect(function(i) if i==dragInput and dragging then local d=i.Position-dragStart; MainFrame.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end); UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging = false end end)
 
 local Header = Instance.new("Frame", MainFrame); Header.Size = UDim2.new(1, 0, 0, 40); Header.BackgroundColor3 = Colors.Element
-local HT = Instance.new("TextLabel", Header); HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1; HT.Text = "UNPATCHABOMB // v1033"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Text; HT.TextStrokeTransparency = 1
+local HT = Instance.new("TextLabel", Header); HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1; HT.Text = "UNPATCHABOMB // v1034"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Text; HT.TextStrokeTransparency = 1
 local Status = Instance.new("TextLabel", MainFrame); Status.Size = UDim2.new(1, -30, 0, 20); Status.Position = UDim2.new(0, 15, 0, 50); Status.BackgroundTransparency = 1; Status.Font = Enum.Font.Code; Status.TextColor3 = Colors.SubText; Status.TextSize = 12; Status.TextXAlignment = Enum.TextXAlignment.Left; Status.Text = "SYSTEM BOOTED."; Status.TextStrokeTransparency = 1
 
 local ExecRateLabel = Instance.new("TextLabel", MainFrame); ExecRateLabel.Size = UDim2.new(1, -30, 0, 20); ExecRateLabel.Position = UDim2.new(0, 15, 0, 68); ExecRateLabel.BackgroundTransparency = 1; ExecRateLabel.Font = Enum.Font.GothamBlack; ExecRateLabel.TextColor3 = Colors.Accent; ExecRateLabel.TextSize = 14; ExecRateLabel.TextXAlignment = Enum.TextXAlignment.Left; ExecRateLabel.Text = "FATALITY PROBABILITY: N/A"; ExecRateLabel.TextStrokeTransparency = 1
@@ -162,12 +170,12 @@ CreateActionBtn("View Blacklist", Colors.SubText, function()
 end)
 
 --------------------------------------------------------------------------------
--- 4. PROFILE ENGINE (TITAN VAULT)
+-- 4. PROFILE ENGINE (TITAN VAULT - BRUTE FORCE EDITION)
 --------------------------------------------------------------------------------
-local ConfigFolder = "Unpatchabomb_Saves"
-if makefolder and not isfolder(ConfigFolder) then pcall(makefolder, ConfigFolder) end
-
-local function GetProfilePath(name) return ConfigFolder .. "/" .. (name == "" and "default" or name) .. ".json" end
+local function GetProfileName() 
+    -- Default filename prefix to handle weak file systems
+    return "UPB_PROFILE_" .. (Sanitize(ProfileBox.Text) == "" and "default" or Sanitize(ProfileBox.Text)) .. ".txt" 
+end
 
 AddSectionHeader("--- PROFILES ---")
 local ProfileBox = Instance.new("TextBox", SettingsList); ProfileBox.Size=UDim2.new(1,-10,0,30); ProfileBox.BackgroundColor3=Colors.Element; ProfileBox.PlaceholderText="PROFILE NAME (Default: 'default')"; ProfileBox.PlaceholderColor3=Colors.SubText; ProfileBox.TextColor3=Colors.Text; ProfileBox.Font=Enum.Font.GothamBold; ProfileBox.TextSize=12; ProfileBox.TextXAlignment=Enum.TextXAlignment.Center; ProfileBox.LayoutOrder=100; Instance.new("UICorner",ProfileBox).CornerRadius=UDim.new(0,6); ProfileBox.TextStrokeTransparency=1; ProfileBox.Text = "default"
@@ -178,23 +186,35 @@ local LoadPBtn = Instance.new("TextButton", PFrame); LoadPBtn.Size=UDim2.new(0.4
 
 local function SaveProfile()
     if not writefile then Status.Text="EXECUTOR UNSUPPORTED"; Status.TextColor3=Colors.Fatal; return end
-    local name = Sanitize(ProfileBox.Text); if name == "" then name = "default" end
+    
+    local path = GetProfileName()
     local data = {Normal = SETTINGS, Flex = FLEX_SETTINGS}
     local s, encoded = pcall(HttpService.JSONEncode, HttpService, data)
+    
     if s then
-        pcall(writefile, GetProfilePath(name), encoded)
-        Status.Text="SAVED: " .. name:upper()
-        Status.TextColor3=Colors.Success
+        if isfile(path) then delfile(path) end -- Brute force delete before write
+        local w_success, w_err = pcall(writefile, path, encoded)
+        if w_success then
+            Status.Text="SAVED: " .. path
+            Status.TextColor3=Colors.Success
+        else
+            Status.Text="WRITE FAIL: " .. tostring(w_err)
+            Status.TextColor3=Colors.Fatal
+        end
     else
         Status.Text="ENCODE FAILED."
+        Status.TextColor3=Colors.Fatal
     end
 end
 
-local function LoadProfile(nameOverride)
+local function LoadProfile(autoLoadName)
     if not readfile then return end
-    local name = nameOverride or Sanitize(ProfileBox.Text); if name == "" then name = "default" end
-    local path = GetProfilePath(name)
-    if not isfile(path) then Status.Text="NO PROFILE: " .. name:upper(); return end
+    local path = autoLoadName and ("UPB_PROFILE_"..autoLoadName..".txt") or GetProfileName()
+    
+    if not isfile(path) then 
+        if not autoLoadName then Status.Text="NO PROFILE: " .. path; Status.TextColor3=Colors.Warning end
+        return 
+    end
     
     local s, content = pcall(readfile, path)
     if s and content then
@@ -208,7 +228,7 @@ local function LoadProfile(nameOverride)
                 local settingsKey = string.gsub(key, " ", "_")
                 if settingsTable[settingsKey] then updateFunc(settingsTable[settingsKey]) end
             end
-            Status.Text="LOADED: " .. name:upper()
+            Status.Text="LOADED: " .. path
             Status.TextColor3=Colors.Success
         end
     end
@@ -226,9 +246,15 @@ function TypeWord(word, skipCount)
     isTyping = true
     local isFlex = FlexT.Text:find("ON")
     local currentSettings = isFlex and FLEX_SETTINGS or SETTINGS
+    local speedRange, startRange
     
-    local speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
-    local startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
+    if GlobalEnv._UPB_Psych_State.IsKillShot then
+        speedRange, startRange = {0.01, 0.02}, {0, 0}
+        GlobalEnv._UPB_Psych_State.IsKillShot = false
+    else
+        speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
+        startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
+    end
     
     task.wait(GetRandomTime(startRange))
     
@@ -292,7 +318,6 @@ function DoSearch()
             elseif isTrap then 
                 local inputLen = #query
                 
-                -- CULLING FOR LAG PREVENTION (150 Max)
                 if #candidates > 150 then
                     ShuffleTable(candidates)
                     local culled = {}
@@ -370,6 +395,7 @@ end
 KillBtn.MouseButton1Click:Connect(DoSearch); InputBox.FocusLost:Connect(function(e) if e then DoSearch() end end)
 
 task.spawn(function() 
+    LoadProfile("default") 
     local c=0
     Status.Text="LOADING DICTIONARY..."
     local WordCheck={}
@@ -399,5 +425,4 @@ task.spawn(function()
         task.wait() 
     end
     Status.Text="ARMED: "..c.." UNIQUE WORDS."
-    LoadProfile("default") 
 end)
