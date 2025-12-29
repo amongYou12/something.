@@ -251,21 +251,18 @@ function TypeWord(word, skipCount)
     isTyping = true
     local isFlex = FlexT.Text:find("ON")
     local currentSettings = isFlex and FLEX_SETTINGS or SETTINGS
-    local speedRange, startRange
     
-    if GlobalEnv._UPB_Psych_State.IsKillShot then
-        speedRange, startRange = {0.01, 0.02}, {0, 0}
-        GlobalEnv._UPB_Psych_State.IsKillShot = false
-    else
-        speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
-        startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
-    end
+    -- STING AI FIX: Always use config. Removed the "KillShot" override.
+    local speedRange = GetRange(currentSettings.Speed_Min, currentSettings.Speed_Var)
+    local startRange = GetRange(currentSettings.Start_Min, currentSettings.Start_Var)
     
     task.wait(GetRandomTime(startRange))
     
     for i = (skipCount or 0) + 1, #word do
         local char = word:sub(i,i):upper()
         local code = Enum.KeyCode[char]
+        
+        -- Default to normal human speed
         local charDelay = GetRandomTime(speedRange)
         
         if isFlex then
@@ -279,12 +276,20 @@ function TypeWord(word, skipCount)
             task.wait(GetRandomTime(GetRange(currentSettings.Hesit_Val_Min, currentSettings.Hesit_Val_Var)))
         end
         
-        if code then pcall(function() vim:SendKeyEvent(true, code, false, game); task.wait(); vim:SendKeyEvent(false, code, false, game) end) end
+        if code then 
+            pcall(function() 
+                vim:SendKeyEvent(true, code, false, game)
+                task.wait() 
+                vim:SendKeyEvent(false, code, false, game) 
+            end) 
+        end
+        
         task.wait(charDelay)
     end
     
     task.wait(0.1)
-    pcall(vim.SendKeyEvent, vim, true, Enum.KeyCode.Return, false, game); pcall(vim.SendKeyEvent, vim, false, Enum.KeyCode.Return, false, game)
+    pcall(vim.SendKeyEvent, vim, true, Enum.KeyCode.Return, false, game)
+    pcall(vim.SendKeyEvent, vim, false, Enum.KeyCode.Return, false, game)
     isTyping = false
 end
 
@@ -293,7 +298,7 @@ function DoSearch()
     local query = Sanitize(InputBox.Text:lower())
     if query == "" then return end
     
-    Status.Text = "CALCULATING MALICIOUS ROUTE..."
+    Status.Text = "HUNTING..."
     Status.TextColor3 = Colors.Accent
     
     task.spawn(function() 
@@ -303,10 +308,12 @@ function DoSearch()
         local isShort = ShortT.Text:find("ON")
         local isFlex = FlexT.Text:find("ON")
         
-        -- 1. Candidate Collection
-        for _, v in ipairs(ALL_WORDS) do 
+        -- 1. Candidate Collection with Yielding to prevent FREEZE
+        for i, v in ipairs(ALL_WORDS) do 
+            -- Yield every 2000 words to let the CPU breathe
+            if i % 2000 == 0 then task.wait() end
+            
             local w = Sanitize(v)
-            -- Check validity, history, and blacklists
             if IsValidEnglishWord(w) and not CheckHist(w) and not IsBlacklisted(w) then 
                 local match = false
                 if isFirst then 
@@ -321,105 +328,65 @@ function DoSearch()
         local found
         if #candidates > 0 then 
             if isFlex then 
-                -- Flex Mode: Just find the longest word to show off
                 local maxLen = 0
                 for _, w in ipairs(candidates) do if #w > maxLen then maxLen = #w; found = w end end 
             
             elseif isTrap then 
-                -- [[ STING AI: DYNAMIC HIERARCHICAL TRAP LOGIC ]] --
-                
-                -- Optimization: Shuffle and cull if too many candidates to prevent lag
-                if #candidates > 250 then
+                -- [[ TRAP LOGIC ]] --
+                if #candidates > 150 then
                     ShuffleTable(candidates)
                     local culled = {}
-                    for i = 1, 250 do table.insert(culled, candidates[i]) end
+                    for i = 1, 150 do table.insert(culled, candidates[i]) end
                     candidates = culled
                 end
                 
                 local scored = {}
-                -- Determine Strategy based on Input Length (Meta-Cognition)
-                local trapDepth = math.max(1, #query) -- If input is 4 chars, we analyze the last 4 chars
+                local trapDepth = math.max(1, #query)
                 
                 for _, w in ipairs(candidates) do 
                     local score = 0
                     local suffix = w:sub(-trapDepth):lower()
                     
-                    -- Constraint: Suffix must exist (word length >= trap depth)
                     if #w >= trapDepth then
                         local startCount = GetStartCount(suffix, 25)
-                        
-                        -- CRITICAL: Validity Check
-                        -- If the suffix leads to NO words, it's a suicide move (invalid game state). Avoid unless desperate.
                         if startCount == 0 then
                             score = -10000 
                         else
-                            -- STRATEGY LAYER 1: 1 Letter Input (Hard Letters)
+                            -- Trap Layer 1: Brute Force
                             if trapDepth == 1 then
                                 if suffix:find("[jqxzvk]") then score = score + 500 end
                             
-                            -- STRATEGY LAYER 2: 2-3 Letters (Complexity/Rarity)
+                            -- Trap Layer 2: Constriction
                             elseif trapDepth >= 2 and trapDepth <= 3 then
-                                -- Lower options = Higher Score (Harder for opponent)
                                 if startCount <= 5 then score = score + 2000
-                                elseif startCount <= 15 then score = score + 1000
-                                end
-                                -- Penalize common endings (ing, ed, es) if depth allows checking
+                                elseif startCount <= 15 then score = score + 1000 end
                                 if suffix == "ing" or suffix == "ted" then score = score - 500 end
                                 
-                            -- STRATEGY LAYER 3: 4+ Letters (Anti-Whole-Word Logic)
+                            -- Trap Layer 3: The Prefix Trap (4+ letters)
                             elseif trapDepth >= 4 then
-                                -- KEY LOGIC: Check if the Suffix ITSELF is a valid word
                                 local isSuffixWord = ALL_WORDS_SET[suffix] or false
-                                
                                 if isSuffixWord then
-                                    -- FATAL: Opponent can just type the suffix. Penalize Heavily.
-                                    score = score - 5000
+                                    score = score - 5000 -- Penalize easy "Whole Words"
                                 else
-                                    -- EXCELLENT: Suffix is NOT a word, but starts words.
-                                    -- Check rarity of follow-ups
                                     if startCount <= 5 then score = score + 3000
                                     elseif startCount <= 10 then score = score + 1500
-                                    else score = score + 500 -- Still good because it forces extension
-                                    end
+                                    else score = score + 500 end
                                 end
                             end
-                            
-                            -- Bonus for Rare Characters in generic context
                             if suffix:find("[jqxz]") then score = score + 150 end
                         end
                     end
-                    
-                    -- Tie-breaker: Shorter words execute faster? Or preferred length? 
-                    -- Let's stick to randomness for variation if scores are equal
                     score = score + math.random(1, 10)
-                    
                     table.insert(scored, {w=w, s=score}) 
                 end
                 
-                -- Sort by calculated malice
                 table.sort(scored, function(a, b) return a.s > b.s end)
-                
-                if #scored > 0 then 
-                    -- Top selection with slight randomization for "Toying" effect
-                    local toyChance = 0.15
-                    if #scored > 5 and math.random() < toyChance then
-                        -- Pick a slightly sub-optimal but still valid option to look human
-                        found = scored[math.random(2, 4)].w
-                        GlobalEnv._UPB_Psych_State.IsKillShot = false
-                         Status.Text = "CALCULATED ERROR..." 
-                         Status.TextColor3 = Colors.Warning
-                    else
-                        found = scored[1].w
-                        GlobalEnv._UPB_Psych_State.IsKillShot = true
-                    end 
-                end 
+                if #scored > 0 then found = scored[1].w end 
                 
             elseif isShort then 
-                -- Short Mode: Minimal characters
                 local minLen = 999
                 for _, w in ipairs(candidates) do if #w < minLen then minLen = #w; found = w end end 
             else 
-                -- Normal Mode: Random valid
                 found = candidates[math.random(#candidates)] 
             end
             if not found and #candidates > 0 then found = candidates[1] end 
@@ -431,27 +398,23 @@ function DoSearch()
             Status.Text = "TARGET: " .. found:upper()
             Status.TextColor3 = Colors.Success
             
-            -- Fatality Calculator Visualization
             task.spawn(function()
-                -- Calculate probability based on the user's intended trap depth
                 local trapDepth = math.max(1, #query)
                 local suffix = found:sub(-math.min(trapDepth, #found)):lower()
                 local kills = GetStartCount(suffix, 999)
-                local probability = 0
-                if kills == 0 then probability = 100 -- Should practically not happen with new logic unless desperate
-                else probability = math.clamp(100 - (kills * 1.5), 10, 99) end
+                local probability = math.clamp(100 - (kills * 1.5), 5, 99)
+                if kills == 0 then probability = 100 end
                 
                 local color = Colors.Success
                 if probability > 60 then color = Colors.Warning end
                 if probability > 90 then color = Colors.Fatal end
-                
-                ExecRateLabel.Text = "FATALITY PROBABILITY: " .. math.floor(probability) .. "% (" .. kills .. " OUTS)"
+                ExecRateLabel.Text = "FATALITY PROBABILITY: " .. math.floor(probability) .. "%"
                 ExecRateLabel.TextColor3 = color
             end)
             
             TypeWord(found, isFirst and #query or 0) 
         else 
-            Status.Text = "NO MATCH FOUND." 
+            Status.Text = "NO MATCH." 
             Status.TextColor3 = Colors.Fatal
         end 
     end) 
