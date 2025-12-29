@@ -1,12 +1,13 @@
 --[[
-    UNPATCHABOMB [v1034 - GOD PATCH]
-    - FIX: Added missing 'ShuffleTable' function (fixed 'call nil value' error).
-    - FIX: Dictionary Loader now properly populates WORD_BUCKETS (fixes Trap Mode accuracy/speed).
-    - PERSISTENCE: switched to Root Folder saving using .txt extension. This bypasses folder permission issues on executors like Xeno.
-    - AUTO-LOAD: Automatically searches for 'UPB_PROFILE_default.txt' on startup.
+    UNPATCHABOMB [v1035 - MANUAL OVERRIDE]
+    - PERSISTENCE: Replaced file saving with a MANUAL COPY/PASTE system.
+    - COPY BUTTON: Copies your current settings to clipboard. Save this string in a text file on your PC.
+    - LOAD BUTTON: Paste the string into the box and click LOAD.
+    - VISUAL FIX: The sliders WILL animate and update to the loaded values instantly.
+    - CORE: Anti-Freeze, Trap Mode (Psychological), and Clean UI preserved.
 ]]--
 
-local SCRIPT_VERSION = "v1034_GodPatch"
+local SCRIPT_VERSION = "v1035_ManualOverride"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -26,15 +27,7 @@ local function IsValidEnglishWord(word) return type(word) == "string" and word:m
 local function GetRandomTime(tbl) if not IsTable(tbl) then return 0.1 end; local v1,v2=tonumber(tbl[1]) or .1, tonumber(tbl[2]) or .2; return math.random(math.floor(v1*1e4), math.floor(v2*1e4))/1e4 end
 local function SafeRandom(min, max) if not min then return 0 end; if not max then return math.random(min) end; if min > max then min, max = max, min end; return math.random(min, max) end
 local function SafeSetClipboard(text) if setclipboard then pcall(function() setclipboard(text) end); return true elseif toclipboard then pcall(function() toclipboard(text) end); return true end return false end
-
--- THE MISSING LINK - RESTORED
-local function ShuffleTable(t)
-    local n = #t
-    for i = n, 2, -1 do
-        local j = math.random(i)
-        t[i], t[j] = t[j], t[i]
-    end
-end
+local function ShuffleTable(t) for i = #t, 2, -1 do local j = math.random(i); t[i], t[j] = t[j], t[i] end end
 
 --------------------------------------------------------------------------------
 -- 2. DATA & STATE
@@ -61,7 +54,7 @@ local function GetRange(min, variancePercent) local m=tonumber(min) or .1; local
 local LL_Enabled, WB_Enabled = false, false
 local LL_Table, WB_Table, ALL_WORDS = {}, {}, {}
 local ALL_WORDS_SET = {}
-local WORD_BUCKETS = {}
+local WORD_BUCKETS = {} 
 local SESSION_BLACKLIST = {} 
 local isTyping, lastFound = false, ""
 local GlobalEnv = (getgenv and getgenv()) or _G
@@ -72,13 +65,12 @@ local WordEndings = {}
 local function CheckHist(w) return GlobalEnv._UPB_History[w:lower()] end
 local function AddHist(w) GlobalEnv._UPB_History[w:lower()] = true end
 
--- FAST LOOKUP
 local function GetStartCount(prefix, limit)
     if not prefix or prefix == "" then return 999 end
     local pLow = prefix:lower()
     local bucketKey = pLow:sub(1, 2)
     local bucket = WORD_BUCKETS[bucketKey]
-    if not bucket then return 0 end
+    if not bucket then return 0 end 
     local count = 0
     for _, w in ipairs(bucket) do
         if w:sub(1, #pLow):lower() == pLow then
@@ -113,7 +105,7 @@ local MainStroke = Instance.new("UIStroke", MainFrame); MainStroke.Color = Color
 local dragging, dragInput, dragStart, startPos; MainFrame.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging, dragStart, startPos = true, i.Position, MainFrame.Position end end); MainFrame.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement then dragInput = i end end); UserInputService.InputChanged:Connect(function(i) if i==dragInput and dragging then local d=i.Position-dragStart; MainFrame.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end); UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging = false end end)
 
 local Header = Instance.new("Frame", MainFrame); Header.Size = UDim2.new(1, 0, 0, 40); Header.BackgroundColor3 = Colors.Element
-local HT = Instance.new("TextLabel", Header); HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1; HT.Text = "UNPATCHABOMB // v1034"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Text; HT.TextStrokeTransparency = 1
+local HT = Instance.new("TextLabel", Header); HT.Size = UDim2.new(1, -20, 1, 0); HT.Position = UDim2.new(0, 15, 0, 0); HT.BackgroundTransparency = 1; HT.Text = "UNPATCHABOMB // v1035"; HT.Font = Enum.Font.GothamBlack; HT.TextSize = 16; HT.TextXAlignment = Enum.TextXAlignment.Left; HT.TextColor3 = Colors.Text; HT.TextStrokeTransparency = 1
 local Status = Instance.new("TextLabel", MainFrame); Status.Size = UDim2.new(1, -30, 0, 20); Status.Position = UDim2.new(0, 15, 0, 50); Status.BackgroundTransparency = 1; Status.Font = Enum.Font.Code; Status.TextColor3 = Colors.SubText; Status.TextSize = 12; Status.TextXAlignment = Enum.TextXAlignment.Left; Status.Text = "SYSTEM BOOTED."; Status.TextStrokeTransparency = 1
 
 local ExecRateLabel = Instance.new("TextLabel", MainFrame); ExecRateLabel.Size = UDim2.new(1, -30, 0, 20); ExecRateLabel.Position = UDim2.new(0, 15, 0, 68); ExecRateLabel.BackgroundTransparency = 1; ExecRateLabel.Font = Enum.Font.GothamBlack; ExecRateLabel.TextColor3 = Colors.Accent; ExecRateLabel.TextSize = 14; ExecRateLabel.TextXAlignment = Enum.TextXAlignment.Left; ExecRateLabel.Text = "FATALITY PROBABILITY: N/A"; ExecRateLabel.TextStrokeTransparency = 1
@@ -170,72 +162,50 @@ CreateActionBtn("View Blacklist", Colors.SubText, function()
 end)
 
 --------------------------------------------------------------------------------
--- 4. PROFILE ENGINE (TITAN VAULT - BRUTE FORCE EDITION)
+-- 4. MANUAL IO SYSTEM
 --------------------------------------------------------------------------------
-local function GetProfileName() 
-    -- Default filename prefix to handle weak file systems
-    return "UPB_PROFILE_" .. (Sanitize(ProfileBox.Text) == "" and "default" or Sanitize(ProfileBox.Text)) .. ".txt" 
-end
+AddSectionHeader("--- MANUAL IO ---")
+local DataInput = Instance.new("TextBox", SettingsList); DataInput.Size=UDim2.new(1,-10,0,60); DataInput.BackgroundColor3=Colors.Element; DataInput.PlaceholderText="[PASTE CONFIG STRING HERE]"; DataInput.PlaceholderColor3=Colors.SubText; DataInput.TextColor3=Colors.Text; DataInput.Font=Enum.Font.Code; DataInput.TextSize=10; DataInput.TextXAlignment=Enum.TextXAlignment.Left; DataInput.TextYAlignment=Enum.TextYAlignment.Top; DataInput.LayoutOrder=98; Instance.new("UICorner",DataInput).CornerRadius=UDim.new(0,6); DataInput.TextStrokeTransparency=1; DataInput.TextWrapped=true; DataInput.ClearTextOnFocus=false
 
-AddSectionHeader("--- PROFILES ---")
-local ProfileBox = Instance.new("TextBox", SettingsList); ProfileBox.Size=UDim2.new(1,-10,0,30); ProfileBox.BackgroundColor3=Colors.Element; ProfileBox.PlaceholderText="PROFILE NAME (Default: 'default')"; ProfileBox.PlaceholderColor3=Colors.SubText; ProfileBox.TextColor3=Colors.Text; ProfileBox.Font=Enum.Font.GothamBold; ProfileBox.TextSize=12; ProfileBox.TextXAlignment=Enum.TextXAlignment.Center; ProfileBox.LayoutOrder=100; Instance.new("UICorner",ProfileBox).CornerRadius=UDim.new(0,6); ProfileBox.TextStrokeTransparency=1; ProfileBox.Text = "default"
+local CopyConfigBtn = Instance.new("TextButton", SettingsList); CopyConfigBtn.Size=UDim2.new(1,-10,0,35); CopyConfigBtn.BackgroundColor3=Colors.Accent; CopyConfigBtn.Text="COPY (EXPORT) CONFIG"; CopyConfigBtn.TextColor3=Colors.Background; CopyConfigBtn.Font=Enum.Font.GothamBlack; CopyConfigBtn.TextSize=12; CopyConfigBtn.LayoutOrder=99; Instance.new("UICorner",CopyConfigBtn).CornerRadius=UDim.new(0,6); CopyConfigBtn.TextStrokeTransparency=1
+local LoadConfigBtn = Instance.new("TextButton", SettingsList); LoadConfigBtn.Size=UDim2.new(1,-10,0,35); LoadConfigBtn.BackgroundColor3=Colors.Warning; LoadConfigBtn.Text="LOAD (IMPORT) PASTED CONFIG"; LoadConfigBtn.TextColor3=Colors.Background; LoadConfigBtn.Font=Enum.Font.GothamBlack; LoadConfigBtn.TextSize=12; LoadConfigBtn.LayoutOrder=100; Instance.new("UICorner",LoadConfigBtn).CornerRadius=UDim.new(0,6); LoadConfigBtn.TextStrokeTransparency=1
 
-local PFrame = Instance.new("Frame", SettingsList); PFrame.Size=UDim2.new(1,-10,0,35); PFrame.BackgroundTransparency=1; PFrame.LayoutOrder=101
-local SavePBtn = Instance.new("TextButton", PFrame); SavePBtn.Size=UDim2.new(0.48,0,1,0); SavePBtn.BackgroundColor3=Colors.Success; SavePBtn.Text="SAVE PROFILE"; SavePBtn.Font=Enum.Font.GothamBlack; SavePBtn.TextSize=11; SavePBtn.TextColor3=Colors.Background; Instance.new("UICorner",SavePBtn).CornerRadius=UDim.new(0,6); SavePBtn.TextStrokeTransparency=1
-local LoadPBtn = Instance.new("TextButton", PFrame); LoadPBtn.Size=UDim2.new(0.48,0,1,0); LoadPBtn.Position=UDim2.new(0.52,0,0,0); LoadPBtn.BackgroundColor3=Colors.Warning; LoadPBtn.Text="LOAD PROFILE"; LoadPBtn.Font=Enum.Font.GothamBlack; LoadPBtn.TextSize=11; LoadPBtn.TextColor3=Colors.Background; Instance.new("UICorner",LoadPBtn).CornerRadius=UDim.new(0,6); LoadPBtn.TextStrokeTransparency=1
-
-local function SaveProfile()
-    if not writefile then Status.Text="EXECUTOR UNSUPPORTED"; Status.TextColor3=Colors.Fatal; return end
-    
-    local path = GetProfileName()
-    local data = {Normal = SETTINGS, Flex = FLEX_SETTINGS}
+CopyConfigBtn.MouseButton1Click:Connect(function()
+    local data = {N = SETTINGS, F = FLEX_SETTINGS}
     local s, encoded = pcall(HttpService.JSONEncode, HttpService, data)
-    
-    if s then
-        if isfile(path) then delfile(path) end -- Brute force delete before write
-        local w_success, w_err = pcall(writefile, path, encoded)
-        if w_success then
-            Status.Text="SAVED: " .. path
-            Status.TextColor3=Colors.Success
-        else
-            Status.Text="WRITE FAIL: " .. tostring(w_err)
-            Status.TextColor3=Colors.Fatal
-        end
+    if s and SafeSetClipboard(encoded) then
+        Status.Text="CONFIG COPIED TO CLIPBOARD."
+        Status.TextColor3=Colors.Success
     else
-        Status.Text="ENCODE FAILED."
+        Status.Text="FAILED TO COPY CONFIG."
         Status.TextColor3=Colors.Fatal
     end
-end
+end)
 
-local function LoadProfile(autoLoadName)
-    if not readfile then return end
-    local path = autoLoadName and ("UPB_PROFILE_"..autoLoadName..".txt") or GetProfileName()
+LoadConfigBtn.MouseButton1Click:Connect(function()
+    local str = DataInput.Text
+    local s, data = pcall(HttpService.JSONDecode, HttpService, str)
     
-    if not isfile(path) then 
-        if not autoLoadName then Status.Text="NO PROFILE: " .. path; Status.TextColor3=Colors.Warning end
-        return 
-    end
-    
-    local s, content = pcall(readfile, path)
-    if s and content then
-        local s, data = pcall(HttpService.JSONDecode, HttpService, content)
-        if s and data then
-            if data.Normal then for k,v in pairs(data.Normal) do SETTINGS[k] = v end end
-            if data.Flex then for k,v in pairs(data.Flex) do FLEX_SETTINGS[k] = v end end
-            for name, updateFunc in pairs(AllSliders) do
-                local category, key = string.match(name, "(.+) (.+)")
-                local settingsTable = (category == "FLEX" and FLEX_SETTINGS or SETTINGS)
-                local settingsKey = string.gsub(key, " ", "_")
-                if settingsTable[settingsKey] then updateFunc(settingsTable[settingsKey]) end
+    if s and type(data) == "table" then
+        if data.N then for k,v in pairs(data.N) do SETTINGS[k] = v end end
+        if data.F then for k,v in pairs(data.F) do FLEX_SETTINGS[k] = v end end
+        
+        -- FORCE VISUAL UPDATE
+        for name, updateFunc in pairs(AllSliders) do
+            local category, key = string.match(name, "(.+) (.+)")
+            local settingsTable = (category == "FLEX" and FLEX_SETTINGS or SETTINGS)
+            local settingsKey = string.gsub(key, " ", "_")
+            if settingsTable[settingsKey] then 
+                updateFunc(settingsTable[settingsKey]) 
             end
-            Status.Text="LOADED: " .. path
-            Status.TextColor3=Colors.Success
         end
+        Status.Text="CONFIG IMPORTED SUCCESSFULLY."
+        Status.TextColor3=Colors.Success
+    else
+        Status.Text="INVALID CONFIG STRING."
+        Status.TextColor3=Colors.Fatal
     end
-end
-
-SavePBtn.MouseButton1Click:Connect(SaveProfile)
-LoadPBtn.MouseButton1Click:Connect(function() LoadProfile() end)
+end)
 
 --------------------------------------------------------------------------------
 -- 5. CHAOS ENGINE
@@ -317,7 +287,6 @@ function DoSearch()
                 for _, w in ipairs(candidates) do if #w > maxLen then maxLen = #w; found = w end end 
             elseif isTrap then 
                 local inputLen = #query
-                
                 if #candidates > 150 then
                     ShuffleTable(candidates)
                     local culled = {}
@@ -394,35 +363,4 @@ function DoSearch()
 end
 KillBtn.MouseButton1Click:Connect(DoSearch); InputBox.FocusLost:Connect(function(e) if e then DoSearch() end end)
 
-task.spawn(function() 
-    LoadProfile("default") 
-    local c=0
-    Status.Text="LOADING DICTIONARY..."
-    local WordCheck={}
-    for i,url in ipairs(DictionaryURLs) do 
-        Status.Text="CONQUERING DICTIONARY "..i.."/"..#DictionaryURLs
-        local s,r=pcall(function() return game:HttpGet(url,true) end)
-        if s then 
-            for l in r:gmatch("[^\r\n]+") do 
-                local w=Sanitize(l)
-                if IsValidEnglishWord(w) and #w>=5 then 
-                    local wl=w:lower()
-                    if not WordCheck[wl] then 
-                        WordCheck[wl]=true
-                        ALL_WORDS_SET[wl]=true
-                        table.insert(ALL_WORDS,w)
-                        c=c+1
-                        local e=w:sub(-2):lower()
-                        if not WordEndings[e] then WordEndings[e]={} end
-                        table.insert(WordEndings[e],w)
-                        local b = wl:sub(1,2)
-                        if not WORD_BUCKETS[b] then WORD_BUCKETS[b]={} end
-                        table.insert(WORD_BUCKETS[b], wl)
-                    end 
-                end 
-            end 
-        end
-        task.wait() 
-    end
-    Status.Text="ARMED: "..c.." UNIQUE WORDS."
-end)
+task.spawn(function() local c=0; Status.Text="LOADING DICTIONARY..."; local WordCheck={}; for i,url in ipairs(DictionaryURLs) do Status.Text="CONQUERING DICTIONARY "..i.."/"..#DictionaryURLs; local s,r=pcall(function() return game:HttpGet(url,true) end); if s then for l in r:gmatch("[^\r\n]+") do local w=Sanitize(l); if IsValidEnglishWord(w) and #w>=5 then local wl=w:lower(); if not WordCheck[wl] then WordCheck[wl]=true; ALL_WORDS_SET[wl]=true; table.insert(ALL_WORDS,w); c=c+1; local e=w:sub(-2):lower(); if not WordEndings[e] then WordEndings[e]={} end; table.insert(WordEndings[e],w) end; local b = wl:sub(1,2); if not WORD_BUCKETS[b] then WORD_BUCKETS[b]={} end; table.insert(WORD_BUCKETS[b], wl) end end end; task.wait() end; Status.Text="ARMED: "..c.." UNIQUE WORDS." end)
