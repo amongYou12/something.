@@ -29,7 +29,7 @@ local function GetRandomTime(tbl) if not IsTable(tbl) then return 0.1 end; local
 -- 2. DATA & STATE
 --------------------------------------------------------------------------------
 local vim = nil; 
-local vim_success, vim_error = pcall(function() vim = game:GetService("VirtualInputManager") end)
+local vim_success, _ = pcall(function() vim = game:GetService("VirtualInputManager") end)
 if not vim_success or not vim then
     warn("UNPATCHABOMB: VirtualInputManager not found. Typing functions will be disabled.")
 end
@@ -61,7 +61,12 @@ local function IsBlacklisted(w) local l=w:lower(); return (LL_Enabled and LL_Tab
 --------------------------------------------------------------------------------
 local Colors = { Background=Color3.fromRGB(18, 19, 23), Element=Color3.fromRGB(35, 38, 46), ElementHover=Color3.fromRGB(50, 54, 66), Text=Color3.fromRGB(230, 230, 240), SubText=Color3.fromRGB(140, 140, 160), Accent=Color3.fromRGB(0, 180, 255), Success=Color3.fromRGB(0, 255, 120), Warning=Color3.fromRGB(255, 180, 0), Error=Color3.fromRGB(255, 40, 80) }
 
-local ParentTarget = gethui and gethui() or CoreGui or Players.LocalPlayer:WaitForChild("PlayerGui")
+local ParentTarget
+pcall(function() ParentTarget = gethui() end)
+if not ParentTarget or not ParentTarget:IsA("GuiObject") then
+    ParentTarget = CoreGui or Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
 if ParentTarget:FindFirstChild("Unpatchabomb") then ParentTarget.Unpatchabomb:Destroy() end
 
 local Screen = Instance.new("ScreenGui", ParentTarget); Screen.Name = "Unpatchabomb"; Screen.ResetOnSpawn = false
@@ -95,8 +100,29 @@ local UIList = Instance.new("UIListLayout", SettingsList); UIList.Padding = UDim
 MainMenuBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=true; SettingsList.Visible=false; MainMenuBtn.BackgroundColor3=Colors.ElementHover; MainMenuBtn.TextColor3=Colors.Text; SettingsBtn.BackgroundColor3=Colors.Element; SettingsBtn.TextColor3=Colors.SubText end)
 SettingsBtn.MouseButton1Click:Connect(function() ModesGrid.Visible=false; SettingsList.Visible=true; SettingsBtn.BackgroundColor3=Colors.ElementHover; SettingsBtn.TextColor3=Colors.Text; MainMenuBtn.BackgroundColor3=Colors.Element; MainMenuBtn.TextColor3=Colors.SubText; task.wait(); SettingsList.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y) end)
 
-local function SaveSettings() pcall(function() if not isfolder or not writefile then return end; if not isfolder("Unpatchabomb") then makefolder("Unpatchabomb") end; local data = HttpService:JSONEncode({Normal = SETTINGS, Flex = FLEX_SETTINGS}); writefile("Unpatchabomb/Settings.json", data) end) end
-local function LoadSettings() pcall(function() if not isfile or not readfile then return end; if not isfile("Unpatchabomb/Settings.json") then return end; local d = readfile("Unpatchabomb/Settings.json"); local s,decoded=pcall(HttpService.JSONDecode, HttpService, d); if not s or not decoded then return end; for k,v in pairs(decoded.Normal or {}) do SETTINGS[k]=v end; for k,v in pairs(decoded.Flex or {}) do FLEX_SETTINGS[k]=v end end) end
+local function SaveSettings()
+    if not (pcall(function() return writefile and isfolder and makefolder end)) then return end
+    local success, err = pcall(function()
+        if not isfolder("Unpatchabomb") then makefolder("Unpatchabomb") end
+        local data = HttpService:JSONEncode({Normal = SETTINGS, Flex = FLEX_SETTINGS})
+        writefile("Unpatchabomb/Settings.json", data)
+    end)
+    if not success then warn("UNPATCHABOMB: Could not save settings -", err) end
+end
+
+local function LoadSettings()
+    if not (pcall(function() return readfile and isfile end)) then return end
+    local success, err = pcall(function()
+        if not isfile("Unpatchabomb/Settings.json") then return end
+        local d = readfile("Unpatchabomb/Settings.json")
+        local s,decoded=pcall(HttpService.JSONDecode, HttpService, d)
+        if s and decoded then
+            for k,v in pairs(decoded.Normal or {}) do SETTINGS[k]=v end
+            for k,v in pairs(decoded.Flex or {}) do FLEX_SETTINGS[k]=v end
+        end
+    end)
+    if not success then warn("UNPATCHABOMB: Could not load settings -", err) end
+end
 
 local AllSliders = {}; local function CreateSlider(name, min, max, default, callback) local F=Instance.new("Frame", SettingsList); F.Size=UDim2.new(1, 0, 0, 40); F.BackgroundColor3=Colors.Element; F.LayoutOrder=#SettingsList:GetChildren(); Instance.new("UICorner", F).CornerRadius=UDim.new(0,6); local L=Instance.new("TextLabel", F); L.Size=UDim2.new(.5,0,1,0); L.Position=UDim2.new(0,10,0,0); L.BackgroundTransparency=1; L.Text=name; L.Font=Enum.Font.GothamBold; L.TextColor3=Colors.SubText; L.TextSize=10; L.TextXAlignment=Enum.TextXAlignment.Left; L.TextStrokeTransparency=1; local V=Instance.new("TextLabel", F); V.Size=UDim2.new(.5,-10,1,0); V.Position=UDim2.new(.5,0,0,0); V.BackgroundTransparency=1; V.Text=string.format("%.2f", default); V.Font=Enum.Font.Code; V.TextColor3=Colors.Accent; V.TextSize=12; V.TextXAlignment=Enum.TextXAlignment.Right; V.TextStrokeTransparency=1; local B=Instance.new("Frame", F); B.Size=UDim2.new(1,-20,0,6); B.Position=UDim2.new(0,10,.5,3); B.BackgroundColor3=Colors.Background; Instance.new("UICorner", B).CornerRadius=UDim.new(1,0); local Fi=Instance.new("Frame", B); Fi.Size=UDim2.new((default-min)/(max-min),0,1,0); Fi.BackgroundColor3=Colors.Accent; Instance.new("UICorner", Fi).CornerRadius=UDim.new(1,0); local T=Instance.new("TextButton", B); T.Size=UDim2.new(1,0,1,0); T.BackgroundTransparency=1; T.Text=""; local function U(v) v=math.clamp(v,min,max); Fi.Size=UDim2.new((v-min)/(max-min),0,1,0); V.Text=string.format("%.2f",v); return v end; AllSliders[name]={Update=U}; local D=false; local move_conn; local function update_pos(i) local rX=math.clamp((i.Position.X-B.AbsolutePosition.X)/B.AbsoluteSize.X,0,1); local val=min+(max-min)*rX; local updated_val=U(val); if callback then callback(updated_val) end end; T.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=true; if move_conn then move_conn:Disconnect() end; move_conn=UserInputService.InputChanged:Connect(function(inp) if D and inp.UserInputType==Enum.UserInputType.MouseMovement then update_pos(inp) end end) end end); UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then D=false; if move_conn then move_conn:Disconnect(); move_conn=nil end; SaveSettings() end end); end
 local function AddSectionHeader(t) local h=Instance.new("TextLabel", SettingsList); h.Size=UDim2.new(1,0,0,20); h.BackgroundTransparency=1; h.Text=t; h.Font=Enum.Font.GothamBlack; h.TextSize=12; h.TextColor3=Colors.Accent; h.TextXAlignment=Enum.TextXAlignment.Center; h.LayoutOrder=#SettingsList:GetChildren(); h.TextStrokeTransparency=1 end
@@ -125,23 +151,23 @@ CreateActionBtn("VIEW BLACKLIST", Colors.Element, function() Status.Text = "Blac
 --------------------------------------------------------------------------------
 local function FindWord(pattern)
     local p = pattern:lower()
-    if not WordEndings[p] then return nil end
-    
     local potentialWords = {}
-    for _, word in ipairs(WordEndings[p]) do
-        if not CheckHist(word) and not IsBlacklisted(word) then
-            table.insert(potentialWords, word)
+    if WordEndings[p] then
+        for _, word in ipairs(WordEndings[p]) do
+            if not CheckHist(word) and not IsBlacklisted(word) then
+                table.insert(potentialWords, word)
+            end
         end
     end
-    
+
     if #potentialWords == 0 then return nil end
 
     table.sort(potentialWords, function(a,b) return #a > #b end)
     if GlobalEnv._UPB_Psych_State.IsKillShot then
         return potentialWords[1]
     else
-        local max_index = math.min(#potentialWords, math.floor(#potentialWords * 0.75))
-        return potentialWords[math.random(1, max_index)]
+        local maxIndex = math.min(#potentialWords, math.max(1, math.floor(#potentialWords * 0.75)))
+        return potentialWords[math.random(1, maxIndex)]
     end
 end
 
@@ -158,13 +184,15 @@ local function TypeWord(word)
     for i = 1, #word do
         local char = word:sub(i,i)
         if isFlexMode and math.random() < settings.Flex_Typo then
-            vim:VirtualInputSend({string.char(math.random(97, 122))})
-            task.wait(GetRandomTime({0.08, 0.15}))
-            vim:VirtualInputSend({Enum.KeyCode.Backspace})
-            task.wait(GetRandomTime({0.05, 0.1}))
+            pcall(function()
+                vim:VirtualInputSend({string.char(math.random(97, 122))})
+                task.wait(GetRandomTime({0.08, 0.15}))
+                vim:VirtualInputSend({Enum.KeyCode.Backspace})
+                task.wait(GetRandomTime({0.05, 0.1}))
+            end)
         end
         
-        vim:VirtualInputSend({char})
+        pcall(function() vim:VirtualInputSend({char}) end)
         
         if math.random() < settings.Hesit_Chance then
             task.wait(GetRandomTime(GetRange(settings.Hesit_Val_Min, settings.Hesit_Val_Var)))
@@ -176,7 +204,7 @@ local function TypeWord(word)
     end
     
     task.wait(GetRandomTime({0.05, 0.1}))
-    vim:VirtualInputSend({Enum.KeyCode.Return})
+    pcall(function() vim:VirtualInputSend({Enum.KeyCode.Return}) end)
     
     AddHist(word)
     lastFound = word
@@ -199,13 +227,13 @@ local function LoadDictionaries()
                 local lower_w = w:lower()
                 if #lower_w > 2 and not uniqueWords[lower_w] then
                     uniqueWords[lower_w] = true
-                    totalWords = totalWords + 1
                 end
             end
         end
     end
     
     for word, _ in pairs(uniqueWords) do
+        totalWords = totalWords + 1
         local start = word:sub(1, 2)
         if not WordEndings[start] then WordEndings[start] = {} end
         table.insert(WordEndings[start], word)
