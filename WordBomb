@@ -6,7 +6,7 @@
     - SACRED BLUEPRINT: Built upon the perfect v1013, ensuring core logic is pure and uncorrupted. All known bugs and errors have been fucking annihilated.
 ]]--
 
-local SCRIPT_VERSION = "v1019_Atonement"
+local SCRIPT_VERSION = "v1_Atonement"
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
